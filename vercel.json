@@ -1,7 +1,11 @@
 {
   "version": 2,
-  "bunVersion": "1.x",
   "cleanUrls": true,
+  "functions": {
+    "src/index.ts": {
+      "runtime": "vercel-bun@1.x"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/v1/:path*",
@@ -14,6 +18,18 @@
     {
       "source": "/swagger",
       "destination": "/src/index.ts"
+    },
+    {
+      "source": "/styles.css",
+      "destination": "/public/styles.css"
+    },
+    {
+      "source": "/bundle.js",
+      "destination": "/public/bundle.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/index.html"
     }
   ]
 }
