@@ -2,38 +2,37 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { staticPlugin } from "@elysiajs/static";
+import { existsSync } from "fs";
+import { join } from "path";
 import { configuration } from "./config";
 import { errorHandlingMiddleware } from "./middleware/error";
 import { apiRouter } from "./routes";
 
 const NO_CACHE = "no-store, no-cache, must-revalidate, proxy-revalidate";
-const isServerless = typeof process !== "undefined" && process.env.VERCEL === "1";
+const hasPublic = existsSync(join(process.cwd(), "public"));
 
 const app = new Elysia()
   .use(cors())
-  // Rute styles.css aman dari ENOENT
   .get("/styles.css", () => {
-    if (isServerless) return new Response("Styles handled by Vercel CDN", { status: 200 });
+    if (!hasPublic) return new Response("Styles handled by Vercel CDN", { status: 200 });
     return new Response(Bun.file("public/styles.css"), {
       headers: { "Content-Type": "text/css;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
     });
   })
-  // Rute bundle.js aman dari ENOENT
   .get("/bundle.js", () => {
-    if (isServerless) return new Response("Bundle handled by Vercel CDN", { status: 200 });
+    if (!hasPublic) return new Response("Bundle handled by Vercel CDN", { status: 200 });
     return new Response(Bun.file("public/bundle.js"), {
       headers: { "Content-Type": "application/javascript;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
     });
   })
-  // Hanya gunakan staticPlugin di lokal komputer
   .use(
-    isServerless 
-      ? (x) => x 
-      : staticPlugin({
+    hasPublic 
+      ? staticPlugin({
           assets: "public",
           prefix: "",
           headers: { "Cache-Control": NO_CACHE }
         })
+      : (x) => x 
   )
   .use(
     swagger({
@@ -48,9 +47,8 @@ const app = new Elysia()
   )
   .use(errorHandlingMiddleware)
   .use(apiRouter)
-  // Rute utama / aman dari ENOENT
   .get("/", () => {
-    if (isServerless) {
+    if (!hasPublic) {
       return new Response("GridRen Backend API Active", { status: 200 });
     }
     return new Response(Bun.file("public/index.html"), {
@@ -58,7 +56,7 @@ const app = new Elysia()
     });
   });
 
-if (!isServerless && typeof Bun !== "undefined" && import.meta.main) {
+if (hasPublic && typeof Bun !== "undefined" && import.meta.main) {
   app.listen(configuration.port);
   console.log(`Server running at http://${app.server?.hostname}:${app.server?.port}`);
   console.log(`Swagger docs available at http://${app.server?.hostname}:${app.server?.port}/swagger`);

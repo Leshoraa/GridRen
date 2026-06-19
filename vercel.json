@@ -20,16 +20,8 @@
       "destination": "/src/index.ts"
     },
     {
-      "source": "/styles.css",
-      "destination": "/public/styles.css"
-    },
-    {
-      "source": "/bundle.js",
-      "destination": "/public/bundle.js"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/public/index.html"
+      "destination": "/index.html"
     }
   ]
 }
