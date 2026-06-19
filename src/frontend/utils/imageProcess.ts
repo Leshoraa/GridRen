@@ -8,6 +8,12 @@ export interface AdjustmentState {
   bloomIntensity: number;
   bloomRadius: number;
   bloomColor: [number, number, number] | null;
+  temperature: number;
+  tint: number;
+  grainIntensity: number;
+  grainSize: number;
+  vignetteIntensity: number;
+  chromaticAberration: number;
 }
 
 export interface CurvePoint {
@@ -266,6 +272,13 @@ export function processPixels(
   const high = adjustments.highlights;
   const shad = adjustments.shadows;
   
+  const temp = adjustments.temperature || 0;
+  const tintVal = adjustments.tint || 0;
+  const grainInt = adjustments.grainIntensity || 0;
+  const grainSz = adjustments.grainSize || 1;
+  const vigInt = adjustments.vignetteIntensity || 0;
+  const chromAb = adjustments.chromaticAberration || 0;
+  
   let bloomBuffer: Uint8ClampedArray | null = null;
   if (adjustments.bloomIntensity > 0 && adjustments.bloomRadius > 0) {
     const extracted = extractHighlights(src, w, h, adjustments.bloomThreshold);
@@ -273,10 +286,21 @@ export function processPixels(
   }
   
   for (let i = 0; i < src.length; i += 4) {
-    const origR = src[i];
-    const origG = src[i + 1];
-    const origB = src[i + 2];
+    const xCo = (i / 4) % w;
+    const yCo = Math.floor((i / 4) / w);
+    
+    let origR = src[i];
+    let origG = src[i + 1];
+    let origB = src[i + 2];
     const origA = src[i + 3];
+    
+    if (chromAb > 0) {
+      const shift = Math.round(chromAb);
+      const rX = Math.max(0, Math.min(w - 1, xCo - shift));
+      const bX = Math.max(0, Math.min(w - 1, xCo + shift));
+      origR = src[(yCo * w + rX) * 4];
+      origB = src[(yCo * w + bX) * 4 + 2];
+    }
     
     let r = origR;
     let g = origG;
@@ -342,6 +366,16 @@ export function processPixels(
     g = lutG[g];
     b = lutB[b];
     
+    if (temp !== 0) {
+      r += temp * 25;
+      b -= temp * 25;
+    }
+    if (tintVal !== 0) {
+      g += tintVal * 20;
+      r -= tintVal * 10;
+      b -= tintVal * 10;
+    }
+    
     if (bloomBuffer) {
       const br = bloomBuffer[i];
       const bg = bloomBuffer[i + 1];
@@ -364,6 +398,24 @@ export function processPixels(
         g += bg * adjustments.bloomIntensity;
         b += bb * adjustments.bloomIntensity;
       }
+    }
+    
+    if (vigInt > 0) {
+      const dx = (xCo - w / 2) / (w / 2);
+      const dy = (yCo - h / 2) / (h / 2);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const vignetteFactor = 1 - vigInt * Math.min(1, Math.pow(dist, 2));
+      r *= vignetteFactor;
+      g *= vignetteFactor;
+      b *= vignetteFactor;
+    }
+    
+    if (grainInt > 0) {
+      const pseudoRand = Math.sin(Math.floor(xCo / grainSz) * 12.9898 + Math.floor(yCo / grainSz) * 78.233) * 43758.5453;
+      const noise = ((pseudoRand - Math.floor(pseudoRand)) - 0.5) * grainInt * 255;
+      r += noise;
+      g += noise;
+      b += noise;
     }
     
     r = Math.max(0, Math.min(255, Math.round(r)));

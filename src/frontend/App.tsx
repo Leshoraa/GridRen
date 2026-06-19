@@ -18,6 +18,12 @@ const initialAdjustments = (): AdjustmentState => ({
   bloomIntensity: 0,
   bloomRadius: 15,
   bloomColor: null,
+  temperature: 0,
+  tint: 0,
+  grainIntensity: 0,
+  grainSize: 1,
+  vignetteIntensity: 0,
+  chromaticAberration: 0,
 });
 
 const initialCurves = (): CurvesState => ({
