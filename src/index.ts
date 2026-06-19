@@ -10,24 +10,18 @@ const NO_CACHE = "no-store, no-cache, must-revalidate, proxy-revalidate";
 const isServerless = typeof process !== "undefined" && process.env.VERCEL === "1";
 
 const app = new Elysia()
-  .use(cors());
-
-if (!isServerless) {
-  app
-    .get("/styles.css", () => new Response(Bun.file("public/styles.css"), {
-      headers: { "Content-Type": "text/css;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
-    }))
-    .get("/bundle.js", () => new Response(Bun.file("public/bundle.js"), {
-      headers: { "Content-Type": "application/javascript;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
-    }))
-    .use(staticPlugin({
-      assets: "public",
-      prefix: "",
-      headers: { "Cache-Control": NO_CACHE }
-    }));
-}
-
-app
+  .use(cors())
+  .get("/styles.css", () => new Response(Bun.file("public/styles.css"), {
+    headers: { "Content-Type": "text/css;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+  }))
+  .get("/bundle.js", () => new Response(Bun.file("public/bundle.js"), {
+    headers: { "Content-Type": "application/javascript;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+  }))
+  .use(staticPlugin({
+    assets: "public",
+    prefix: "",
+    headers: { "Cache-Control": NO_CACHE }
+  }))
   .use(
     swagger({
       path: "/swagger",
@@ -40,14 +34,10 @@ app
     })
   )
   .use(errorHandlingMiddleware)
-  .use(apiRouter);
-
-if (!isServerless) {
-  app
-    .get("/", () => new Response(Bun.file("public/index.html"), {
-      headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
-    }));
-}
+  .use(apiRouter)
+  .get("/", () => new Response(Bun.file("public/index.html"), {
+    headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+  }));
 
 if (!isServerless && typeof Bun !== "undefined" && import.meta.main) {
   app.listen(configuration.port);
