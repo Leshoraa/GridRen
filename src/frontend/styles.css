@@ -165,7 +165,8 @@ body {
   padding: var(--grid-gap);
   background-color: var(--bg-primary);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  z-index: 2;
 }
 
 .canvas-container {
@@ -631,7 +632,8 @@ body {
   background-color: var(--bg-primary);
   height: 64px;
   width: 100%;
-  z-index: 10;
+  position: relative;
+  z-index: 1;
   gap: 12px;
 }
 
