@@ -720,19 +720,20 @@ export const App: React.FC = () => {
               )}
 
               {activeTab === 'hsl' && (
-                <ColorMixerModule
-                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
-                  onChange={handleAdjustmentChange}
-                  onMouseUp={commitAdjustmentHistory}
-                />
-              )}
-
-              {activeTab === 'grading' && (
-                <ColorGradingModule
-                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
-                  onChange={handleAdjustmentChange}
-                  onMouseUp={commitAdjustmentHistory}
-                />
+                <>
+                  <ColorMixerModule
+                    adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                    onChange={handleAdjustmentChange}
+                    onMouseUp={commitAdjustmentHistory}
+                  />
+                  <div style={{ marginTop: '20px' }}>
+                    <ColorGradingModule
+                      adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                      onChange={handleAdjustmentChange}
+                      onMouseUp={commitAdjustmentHistory}
+                    />
+                  </div>
+                </>
               )}
 
               {activeTab === 'detail' && (

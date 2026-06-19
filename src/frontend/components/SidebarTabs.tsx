@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type TabType = 'presets' | 'basic' | 'hsl' | 'grading' | 'curves' | 'detail' | 'effects' | 'stylize' | 'lens' | 'masks' | 'geometry';
+export type TabType = 'presets' | 'basic' | 'hsl' | 'curves' | 'detail' | 'effects' | 'stylize' | 'lens' | 'masks' | 'geometry';
 
 interface SidebarTabsProps {
   activeTab: TabType;
@@ -17,7 +17,6 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     { id: 'presets', label: 'Presets', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>palette</span> },
     { id: 'basic', label: 'Basic', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>tune</span> },
     { id: 'hsl', label: 'Mixer', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>instant_mix</span> },
-    { id: 'grading', label: 'Grading', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>explore</span> },
     { id: 'curves', label: 'Curves', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>show_chart</span> },
     { id: 'detail', label: 'Detail', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>bolt</span> },
     { id: 'effects', label: 'Effects', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span> },
