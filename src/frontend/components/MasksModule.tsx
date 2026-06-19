@@ -1,6 +1,7 @@
 import React from 'react';
 import { MaskData } from './CanvasWorkspace';
 import { AdjustmentState, CurvesState, PresetType } from '../utils/imageProcess';
+import { SwissSlider } from './SwissSlider';
 
 interface MasksModuleProps {
   masks: MaskData[];
@@ -105,47 +106,34 @@ export const MasksModule: React.FC<MasksModuleProps> = ({
           )}
 
           {activeMask && activeMask.type === 'brush' && (
-            <div className="brush-controls" style={{ marginTop: '16px' }}>
-              <div className="slider-header">
-                <span className="slider-name">Brush Size</span>
-                <span className="slider-value">{brushSize}px</span>
-              </div>
-              <input
-                type="range"
-                className="slider-input"
-                min="5"
-                max="100"
+            <div className="brush-controls" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <SwissSlider
+                label="Brush Size"
                 value={brushSize}
-                onChange={e => setBrushSize(parseInt(e.target.value))}
+                min={5}
+                max={100}
+                step={1}
+                onChange={setBrushSize}
               />
 
-              <div className="slider-header">
-                <span className="slider-name">Brush Feather</span>
-                <span className="slider-value">{Math.round(brushFeather * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                className="slider-input"
-                min="0"
-                max="1"
-                step="0.05"
+              <SwissSlider
+                label="Brush Feather"
                 value={brushFeather}
-                onChange={e => setBrushFeather(parseFloat(e.target.value))}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={setBrushFeather}
               />
 
-              <div className="slider-header">
-                <span className="slider-name">Brush Opacity</span>
-                <span className="slider-value">{Math.round(brushOpacity * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                className="slider-input"
-                min="0.1"
-                max="1"
-                step="0.05"
+              <SwissSlider
+                label="Brush Opacity"
                 value={brushOpacity}
-                onChange={e => setBrushOpacity(parseFloat(e.target.value))}
+                min={0.1}
+                max={1}
+                step={0.01}
+                onChange={setBrushOpacity}
               />
+
 
               <div className="slider-header" style={{ marginTop: '12px' }}>
                 <button

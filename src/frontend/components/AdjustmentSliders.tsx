@@ -1,14 +1,17 @@
 import React from 'react';
 import { AdjustmentState } from '../utils/imageProcess';
+import { SwissSlider } from './SwissSlider';
 
 interface AdjustmentSlidersProps {
   adjustments: AdjustmentState;
   onChange: (key: keyof AdjustmentState, value: any) => void;
+  onCommit?: () => void;
 }
 
 export const AdjustmentSliders: React.FC<AdjustmentSlidersProps> = ({
   adjustments,
   onChange,
+  onCommit,
 }) => {
   const coreSliders = [
     { key: 'exposure' as keyof AdjustmentState, label: 'Exposure', min: -2, max: 2, step: 0.01 },
@@ -43,25 +46,20 @@ export const AdjustmentSliders: React.FC<AdjustmentSlidersProps> = ({
     { name: 'Warm Amber', value: [255, 191, 0] },
   ];
 
-  const renderSlider = (s: { key: keyof AdjustmentState; label: string; min: number; max: number; step: number }) => (
-    <div key={s.key} className="slider-group">
-      <div className="slider-header">
-        <span className="slider-name">{s.label}</span>
-        <span className="slider-value">
-          {Number(adjustments[s.key] ?? 0).toFixed(s.step === 1 ? 0 : 2)}
-        </span>
-      </div>
-      <input
-        type="range"
-        className="slider-input"
+  const renderSlider = (s: { key: keyof AdjustmentState; label: string; min: number; max: number; step: number }) => {
+    return (
+      <SwissSlider
+        key={s.key}
+        label={s.label}
+        value={Number(adjustments[s.key] ?? 0)}
         min={s.min}
         max={s.max}
         step={s.step}
-        value={Number(adjustments[s.key] ?? 0)}
-        onChange={e => onChange(s.key, parseFloat(e.target.value))}
+        onChange={val => onChange(s.key, val)}
+        onCommit={onCommit}
       />
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -83,7 +81,7 @@ export const AdjustmentSliders: React.FC<AdjustmentSlidersProps> = ({
         <div className="slider-section-title">Bloom Engine</div>
         <div className="slider-section-content">
           {bloomSliders.map(renderSlider)}
-          
+
           <div className="color-picker-group" style={{ marginTop: '12px' }}>
             <div className="slider-header" style={{ marginBottom: '8px' }}>
               <span className="slider-name">Bloom Tint</span>
@@ -126,3 +124,4 @@ export const AdjustmentSliders: React.FC<AdjustmentSlidersProps> = ({
     </div>
   );
 };
+export default AdjustmentSliders;

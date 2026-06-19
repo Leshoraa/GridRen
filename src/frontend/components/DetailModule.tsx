@@ -1,5 +1,6 @@
 import React from 'react';
 import { AdjustmentState } from '../utils/imageProcess';
+import { SwissSlider } from './SwissSlider';
 
 interface DetailModuleProps {
   adjustments: AdjustmentState;
@@ -26,24 +27,20 @@ export const DetailModule: React.FC<DetailModuleProps> = ({
         {sliders.map(s => {
           const val = (adjustments[s.key] as number) ?? 0;
           return (
-            <div key={s.key} className="slider-group">
-              <div className="slider-header">
-                <span className="slider-name">{s.label}</span>
-                <span className="slider-value">{val.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                className="slider-input"
-                min={s.min}
-                max={s.max}
-                step={s.step}
-                value={val}
-                onChange={e => onChange(s.key, parseFloat(e.target.value))}
-              />
-            </div>
+            <SwissSlider
+              key={s.key}
+              label={s.label}
+              value={val}
+              min={s.min}
+              max={s.max}
+              step={s.step}
+              onChange={nextVal => onChange(s.key, nextVal)}
+              onCommit={onMouseUp}
+            />
           );
         })}
       </div>
     </div>
   );
 };
+export default DetailModule;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AdjustmentState } from '../utils/imageProcess';
+import { SwissSlider } from './SwissSlider';
 
 interface ColorMixerModuleProps {
   adjustments: AdjustmentState;
@@ -44,11 +45,11 @@ export const ColorMixerModule: React.FC<ColorMixerModuleProps> = ({
     <div className="control-module active-module" onMouseUp={onMouseUp}>
       <div className="module-title-clean">Color Mixer (HSL)</div>
       
-      <div className="mixer-tabs">
+      <div className="mixer-tabs" style={{ marginBottom: '16px' }}>
         {(['hue', 'sat', 'lum'] as HslTab[]).map(tab => (
           <button
             key={tab}
-            className={`mixer-tab-btn ${activeTab === tab ? 'active' : ''}`}
+            className={`mixer-tab ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
             {getTabLabel(tab)}
@@ -62,28 +63,22 @@ export const ColorMixerModule: React.FC<ColorMixerModuleProps> = ({
           const val = (adjustments[key] as number) ?? 0;
 
           return (
-            <div key={ch.name} className="slider-group">
-              <div className="slider-header">
-                <span className="slider-name" style={{ color: ch.hex, fontWeight: 900 }}>
-                  {ch.name}
-                </span>
-                <span className="slider-value">
-                  {val > 0 ? `+${val.toFixed(2)}` : val.toFixed(2)}
-                </span>
-              </div>
-              <input
-                type="range"
-                className="slider-input"
-                min="-1"
-                max="1"
-                step="0.01"
-                value={val}
-                onChange={e => onChange(key, parseFloat(e.target.value))}
-              />
-            </div>
+            <SwissSlider
+              key={ch.name}
+              label={ch.name}
+              value={val}
+              min={-1}
+              max={1}
+              step={0.01}
+              onChange={newVal => onChange(key, newVal)}
+              onCommit={onMouseUp}
+              showPlusSign={true}
+              labelStyle={{ color: ch.hex, fontWeight: 900 }}
+            />
           );
         })}
       </div>
     </div>
   );
 };
+export default ColorMixerModule;

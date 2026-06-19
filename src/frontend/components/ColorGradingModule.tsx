@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { AdjustmentState } from '../utils/imageProcess';
+import { SwissSlider } from './SwissSlider';
 
 interface ColorGradingModuleProps {
   adjustments: AdjustmentState;
@@ -85,23 +86,19 @@ export const ColorGradingModule: React.FC<ColorGradingModuleProps> = ({
         })}
       </div>
 
-      <div className="slider-section" style={{ borderTop: 'none', paddingTop: '0', marginTop: '16px' }} onMouseUp={onMouseUp}>
-        <div className="slider-group">
-          <div className="slider-header">
-            <span className="slider-name">Grading Balance</span>
-            <span className="slider-value">{(adjustments.colorGradingBalance ?? 0).toFixed(2)}</span>
-          </div>
-          <input
-            type="range"
-            className="slider-input"
-            min="-1"
-            max="1"
-            step="0.01"
-            value={adjustments.colorGradingBalance ?? 0}
-            onChange={e => onChange('colorGradingBalance', parseFloat(e.target.value))}
-          />
-        </div>
+      <div className="slider-section" style={{ borderTop: 'none', paddingTop: '0', marginTop: '16px' }}>
+        <SwissSlider
+          label="Grading Balance"
+          value={adjustments.colorGradingBalance ?? 0}
+          min={-1}
+          max={1}
+          step={0.01}
+          onChange={val => onChange('colorGradingBalance', val)}
+          onCommit={onMouseUp}
+          showPlusSign={true}
+        />
       </div>
     </div>
   );
 };
+export default ColorGradingModule;
