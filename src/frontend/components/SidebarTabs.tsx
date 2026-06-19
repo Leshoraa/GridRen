@@ -1,9 +1,11 @@
 import React from 'react';
-import { Palette, Sliders, TrendingUp, Layers } from 'lucide-react';
+import { Palette, Sliders, TrendingUp, Layers, Crop } from 'lucide-react';
+
+type TabType = 'presets' | 'adjustments' | 'curves' | 'masks' | 'crop';
 
 interface SidebarTabsProps {
-  activeTab: 'presets' | 'adjustments' | 'curves' | 'masks';
-  setActiveTab: (tab: 'presets' | 'adjustments' | 'curves' | 'masks') => void;
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
   uiCollapsed: boolean;
 }
 
@@ -12,40 +14,27 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   setActiveTab,
   uiCollapsed,
 }) => {
+  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
+    { id: 'presets', label: 'Presets', icon: <Palette size={15} /> },
+    { id: 'adjustments', label: 'Adjust', icon: <Sliders size={15} /> },
+    { id: 'curves', label: 'Curves', icon: <TrendingUp size={15} /> },
+    { id: 'masks', label: 'Masks', icon: <Layers size={15} /> },
+    { id: 'crop', label: 'Crop', icon: <Crop size={15} /> },
+  ];
+
   return (
     <div className="sidebar-tabs">
-      <button
-        className={`tab-btn ${activeTab === 'presets' && !uiCollapsed ? 'active' : ''}`}
-        onClick={() => setActiveTab('presets')}
-        title="Presets"
-      >
-        <Palette size={16} />
-        <span>Presets</span>
-      </button>
-      <button
-        className={`tab-btn ${activeTab === 'adjustments' && !uiCollapsed ? 'active' : ''}`}
-        onClick={() => setActiveTab('adjustments')}
-        title="Adjustments"
-      >
-        <Sliders size={16} />
-        <span>Adjust</span>
-      </button>
-      <button
-        className={`tab-btn ${activeTab === 'curves' && !uiCollapsed ? 'active' : ''}`}
-        onClick={() => setActiveTab('curves')}
-        title="Tone Curves"
-      >
-        <TrendingUp size={16} />
-        <span>Curves</span>
-      </button>
-      <button
-        className={`tab-btn ${activeTab === 'masks' && !uiCollapsed ? 'active' : ''}`}
-        onClick={() => setActiveTab('masks')}
-        title="Selective Masks"
-      >
-        <Layers size={16} />
-        <span>Masks</span>
-      </button>
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          className={`tab-btn ${activeTab === tab.id && !uiCollapsed ? 'active' : ''}`}
+          onClick={() => setActiveTab(tab.id)}
+          title={tab.label}
+        >
+          {tab.icon}
+          <span>{tab.label}</span>
+        </button>
+      ))}
     </div>
   );
 };

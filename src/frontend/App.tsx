@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { CanvasWorkspace, MaskData } from './components/CanvasWorkspace';
+import React, { useState, useEffect, useRef } from 'react';
+import { CanvasWorkspace, MaskData, CanvasWorkspaceHandle } from './components/CanvasWorkspace';
 import { AppHeader } from './components/AppHeader';
 import { PresetsModule } from './components/PresetsModule';
 import { AdjustmentsModule } from './components/AdjustmentsModule';
 import { CurvesModule } from './components/CurvesModule';
 import { MasksModule } from './components/MasksModule';
+import { TransformModule } from './components/TransformModule';
 import { SidebarTabs } from './components/SidebarTabs';
+
 import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels } from './utils/imageProcess';
 
 const initialAdjustments = (): AdjustmentState => ({
@@ -24,6 +26,44 @@ const initialAdjustments = (): AdjustmentState => ({
   grainSize: 1,
   vignetteIntensity: 0,
   chromaticAberration: 0,
+
+  clarity: 0,
+  dehaze: 0,
+  sharpening: 0,
+  denoise: 0,
+
+  colorGradingBalance: 0,
+  colorGradingShadowsHue: 0,
+  colorGradingShadowsSat: 0,
+  colorGradingMidtonesHue: 0,
+  colorGradingMidtonesSat: 0,
+  colorGradingHighlightsHue: 0,
+  colorGradingHighlightsSat: 0,
+
+  hslHueRed: 0,
+  hslSatRed: 0,
+  hslLumRed: 0,
+  hslHueOrange: 0,
+  hslSatOrange: 0,
+  hslLumOrange: 0,
+  hslHueYellow: 0,
+  hslSatYellow: 0,
+  hslLumYellow: 0,
+  hslHueGreen: 0,
+  hslSatGreen: 0,
+  hslLumGreen: 0,
+  hslHueAqua: 0,
+  hslSatAqua: 0,
+  hslLumAqua: 0,
+  hslHueBlue: 0,
+  hslSatBlue: 0,
+  hslLumBlue: 0,
+  hslHuePurple: 0,
+  hslSatPurple: 0,
+  hslLumPurple: 0,
+  hslHueMagenta: 0,
+  hslSatMagenta: 0,
+  hslLumMagenta: 0,
 });
 
 const initialCurves = (): CurvesState => ({
@@ -39,7 +79,109 @@ interface HistoryState {
   globalPreset: PresetType;
   masks: MaskData[];
   activeMaskId: string | null;
+  origPixels: Uint8ClampedArray;
+  previewW: number;
+  previewH: number;
 }
+
+const rotatePixelsCW = (pixels: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(pixels.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const srcIdx = (y * w + x) * 4;
+      const destX = h - 1 - y;
+      const destY = x;
+      const destIdx = (destY * h + destX) * 4;
+      dest[destIdx] = pixels[srcIdx];
+      dest[destIdx + 1] = pixels[srcIdx + 1];
+      dest[destIdx + 2] = pixels[srcIdx + 2];
+      dest[destIdx + 3] = pixels[srcIdx + 3];
+    }
+  }
+  return dest;
+};
+
+const rotatePixelsCCW = (pixels: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(pixels.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const srcIdx = (y * w + x) * 4;
+      const destX = y;
+      const destY = w - 1 - x;
+      const destIdx = (destY * h + destX) * 4;
+      dest[destIdx] = pixels[srcIdx];
+      dest[destIdx + 1] = pixels[srcIdx + 1];
+      dest[destIdx + 2] = pixels[srcIdx + 2];
+      dest[destIdx + 3] = pixels[srcIdx + 3];
+    }
+  }
+  return dest;
+};
+
+const flipPixelsH = (pixels: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(pixels.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const srcIdx = (y * w + x) * 4;
+      const destIdx = (y * w + (w - 1 - x)) * 4;
+      dest[destIdx] = pixels[srcIdx];
+      dest[destIdx + 1] = pixels[srcIdx + 1];
+      dest[destIdx + 2] = pixels[srcIdx + 2];
+      dest[destIdx + 3] = pixels[srcIdx + 3];
+    }
+  }
+  return dest;
+};
+
+const flipPixelsV = (pixels: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(pixels.length);
+  for (let y = 0; y < h; y++) {
+    const srcRowIdx = y * w * 4;
+    const destRowIdx = (h - 1 - y) * w * 4;
+    dest.set(pixels.subarray(srcRowIdx, srcRowIdx + w * 4), destRowIdx);
+  }
+  return dest;
+};
+
+const rotateMaskCW = (mask: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(mask.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      dest[x * h + (h - 1 - y)] = mask[y * w + x];
+    }
+  }
+  return dest;
+};
+
+const rotateMaskCCW = (mask: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(mask.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      dest[(w - 1 - x) * h + y] = mask[y * w + x];
+    }
+  }
+  return dest;
+};
+
+const flipMaskH = (mask: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(mask.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      dest[y * w + (w - 1 - x)] = mask[y * w + x];
+    }
+  }
+  return dest;
+};
+
+const flipMaskV = (mask: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray => {
+  const dest = new Uint8ClampedArray(mask.length);
+  for (let y = 0; y < h; y++) {
+    const srcRowIdx = y * w;
+    const destRowIdx = (h - 1 - y) * w;
+    dest.set(mask.subarray(srcRowIdx, srcRowIdx + w), destRowIdx);
+  }
+  return dest;
+};
 
 export const App: React.FC = () => {
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
@@ -58,6 +200,9 @@ export const App: React.FC = () => {
   const [globalCurves, setGlobalCurves] = useState<CurvesState>(initialCurves());
   const [globalPreset, setGlobalPreset] = useState<PresetType>('none');
 
+  const pendingAdjRef = useRef<AdjustmentState>(initialAdjustments());
+  const canvasRef = useRef<CanvasWorkspaceHandle>(null);
+
   const [masks, setMasks] = useState<MaskData[]>([]);
   const [activeMaskId, setActiveMaskId] = useState<string | null>(null);
 
@@ -68,7 +213,7 @@ export const App: React.FC = () => {
   const [showOverlay, setShowOverlay] = useState(false);
 
   const [uiCollapsed, setUiCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'presets' | 'adjustments' | 'curves' | 'masks'>('presets');
+  const [activeTab, setActiveTab] = useState<'presets' | 'adjustments' | 'curves' | 'masks' | 'crop'>('presets');
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
 
@@ -78,6 +223,10 @@ export const App: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [previewW, setPreviewW] = useState(0);
   const [previewH, setPreviewH] = useState(0);
+
+  const [origPixels, setOrigPixels] = useState<Uint8ClampedArray | null>(null);
+
+  const [splitRatio, setSplitRatio] = useState<number | null>(null);
 
   const activeMask = masks.find(m => m.id === activeMaskId);
 
@@ -91,7 +240,10 @@ export const App: React.FC = () => {
     nextCrv = globalCurves,
     nextPre = globalPreset,
     nextMsk = masks,
-    nextAct = activeMaskId
+    nextAct = activeMaskId,
+    nextPixels = origPixels,
+    nextW = previewW,
+    nextH = previewH
   ) => {
     const newStack = historyStack.slice(0, historyIndex + 1);
     const state: HistoryState = {
@@ -105,6 +257,9 @@ export const App: React.FC = () => {
         adjustments: { ...m.adjustments },
         curves: JSON.parse(JSON.stringify(m.curves)),
       })),
+      origPixels: nextPixels ? new Uint8ClampedArray(nextPixels) : new Uint8ClampedArray(0),
+      previewW: nextW,
+      previewH: nextH,
     };
     setHistoryStack([...newStack, state]);
     setHistoryIndex(newStack.length);
@@ -129,7 +284,9 @@ export const App: React.FC = () => {
   };
 
   const restoreHistoryState = (state: HistoryState) => {
-    setGlobalAdjustments(state.globalAdjustments);
+    const adj = state.globalAdjustments;
+    setGlobalAdjustments(adj);
+    pendingAdjRef.current = { ...adj };
     setGlobalCurves(state.globalCurves);
     setGlobalPreset(state.globalPreset);
     setActiveMaskId(state.activeMaskId);
@@ -139,6 +296,11 @@ export const App: React.FC = () => {
       adjustments: { ...m.adjustments },
       curves: JSON.parse(JSON.stringify(m.curves)),
     })));
+    if (state.origPixels && state.origPixels.length > 0) {
+      setOrigPixels(new Uint8ClampedArray(state.origPixels));
+    }
+    setPreviewW(state.previewW);
+    setPreviewH(state.previewH);
   };
 
   const handleImageLoad = (img: HTMLImageElement, w: number, h: number) => {
@@ -154,8 +316,7 @@ export const App: React.FC = () => {
       });
     }
 
-    const initialMsk: MaskData[] = [];
-    setMasks(initialMsk);
+    setMasks([]);
     setActiveMaskId(null);
     setGlobalAdjustments(initialAdjustments());
     setGlobalCurves(initialCurves());
@@ -167,13 +328,18 @@ export const App: React.FC = () => {
       globalPreset: 'none',
       masks: [],
       activeMaskId: null,
+      origPixels: new Uint8ClampedArray(0),
+      previewW: w,
+      previewH: h,
     };
     setHistoryStack([initialState]);
     setHistoryIndex(0);
+    pendingAdjRef.current = initialAdjustments();
     setZoom(100);
     setPan({ x: 0, y: 0 });
     showToast('Workspace initialized');
   };
+
 
   const addMask = (type: 'brush' | 'radial' | 'linear') => {
     if (!previewW || !previewH) return;
@@ -235,21 +401,23 @@ export const App: React.FC = () => {
     if (activeMask) {
       const nextMasks = masks.map(m => {
         if (m.id === activeMaskId) {
-          return {
-            ...m,
-            adjustments: { ...m.adjustments, [key]: val },
-          };
+          return { ...m, adjustments: { ...m.adjustments, [key]: val } };
         }
         return m;
       });
       setMasks(nextMasks);
     } else {
-      setGlobalAdjustments(prev => ({ ...prev, [key]: val }));
+      const next = { ...pendingAdjRef.current, [key]: val };
+      pendingAdjRef.current = next;
+      canvasRef.current?.liveRedraw(next, globalCurves, globalPreset);
     }
   };
 
   const commitAdjustmentHistory = () => {
-    pushHistory();
+    if (!activeMask) {
+      setGlobalAdjustments(pendingAdjRef.current);
+    }
+    pushHistory(pendingAdjRef.current);
   };
 
   const handleCurveChange = (channel: keyof CurvesState, points: CurvePoint[]) => {
@@ -361,7 +529,52 @@ export const App: React.FC = () => {
     setHistoryIndex(-1);
   };
 
-  const handleTabClick = (tab: 'presets' | 'adjustments' | 'curves' | 'masks') => {
+  const rotateCW = () => {
+    const orig = canvasRef.current?.getOrigPixels();
+    if (!orig || !previewW || !previewH) return;
+    const nextPixels = rotatePixelsCW(orig, previewW, previewH);
+    const nextMasks = masks.map(m => ({ ...m, buffer: rotateMaskCW(m.buffer, previewW, previewH) }));
+    canvasRef.current?.setOrigPixels(nextPixels, previewH, previewW);
+    setPreviewW(previewH); setPreviewH(previewW); setMasks(nextMasks);
+    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, previewH, previewW);
+    showToast('Rotated Clockwise');
+  };
+
+  const rotateCCW = () => {
+    const orig = canvasRef.current?.getOrigPixels();
+    if (!orig || !previewW || !previewH) return;
+    const nextPixels = rotatePixelsCCW(orig, previewW, previewH);
+    const nextMasks = masks.map(m => ({ ...m, buffer: rotateMaskCCW(m.buffer, previewW, previewH) }));
+    canvasRef.current?.setOrigPixels(nextPixels, previewH, previewW);
+    setPreviewW(previewH); setPreviewH(previewW); setMasks(nextMasks);
+    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, previewH, previewW);
+    showToast('Rotated Counter-Clockwise');
+  };
+
+  const flipH = () => {
+    const orig = canvasRef.current?.getOrigPixels();
+    if (!orig || !previewW || !previewH) return;
+    const nextPixels = flipPixelsH(orig, previewW, previewH);
+    const nextMasks = masks.map(m => ({ ...m, buffer: flipMaskH(m.buffer, previewW, previewH) }));
+    canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
+    setMasks(nextMasks);
+    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, previewW, previewH);
+    showToast('Flipped Horizontally');
+  };
+
+  const flipV = () => {
+    const orig = canvasRef.current?.getOrigPixels();
+    if (!orig || !previewW || !previewH) return;
+    const nextPixels = flipPixelsV(orig, previewW, previewH);
+    const nextMasks = masks.map(m => ({ ...m, buffer: flipMaskV(m.buffer, previewW, previewH) }));
+    canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
+    setMasks(nextMasks);
+    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, previewW, previewH);
+    showToast('Flipped Vertically');
+  };
+
+
+  const handleTabClick = (tab: 'presets' | 'adjustments' | 'curves' | 'masks' | 'crop') => {
     if (activeTab === tab) {
       setUiCollapsed(!uiCollapsed);
     } else {
@@ -394,6 +607,7 @@ export const App: React.FC = () => {
       <main className={`main-layout ${!imageElement ? 'no-image' : ''} ${uiCollapsed ? 'collapsed-ui' : ''}`}>
         <div className="workspace-area">
           <CanvasWorkspace
+            ref={canvasRef}
             imageElement={imageElement}
             adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
             curves={activeMask ? activeMask.curves : globalCurves}
@@ -412,19 +626,26 @@ export const App: React.FC = () => {
             setZoom={setZoom}
             pan={pan}
             setPan={setPan}
+            splitRatio={splitRatio}
+            setSplitRatio={setSplitRatio}
           />
 
           {imageElement && (
-            <SidebarTabs
-              activeTab={activeTab}
-              setActiveTab={handleTabClick}
-              uiCollapsed={uiCollapsed}
-            />
+            <div className="workspace-bottom-panel">
+              <div className="unified-bottom-bar">
+                <SidebarTabs
+                  activeTab={activeTab}
+                  setActiveTab={handleTabClick}
+                  uiCollapsed={uiCollapsed}
+                />
+              </div>
+            </div>
           )}
         </div>
 
         {imageElement && (
           <aside className="sidebar-panel">
+
             <div className="sidebar-content">
               {activeTab === 'presets' && (
                 <PresetsModule
@@ -475,6 +696,17 @@ export const App: React.FC = () => {
                   setBrushMode={setBrushMode}
                   showOverlay={showOverlay}
                   setShowOverlay={setShowOverlay}
+                />
+              )}
+
+              {activeTab === 'crop' && (
+                <TransformModule
+                  onRotateCW={rotateCW}
+                  onRotateCCW={rotateCCW}
+                  onFlipH={flipH}
+                  onFlipV={flipV}
+                  splitRatio={splitRatio}
+                  onToggleSplit={() => setSplitRatio(prev => prev === null ? 0.5 : null)}
                 />
               )}
             </div>
