@@ -4,7 +4,15 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/v1/:path*",
+      "destination": "/src/index.ts"
+    },
+    {
+      "source": "/swagger/:path*",
+      "destination": "/src/index.ts"
+    },
+    {
+      "source": "/swagger",
       "destination": "/src/index.ts"
     }
   ]
