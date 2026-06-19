@@ -310,6 +310,15 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     draw();
   }, [origPixels, adjustments, curves, preset, masks, activeMaskId, showOverlay, isDrawing, dragStart, dragCurrent]);
 
+  const aspectRatio = previewSize.w && previewSize.h ? previewSize.w / previewSize.h : 1;
+  const aspectRatioStr = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : 'auto';
+
+  useEffect(() => {
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.style.setProperty('--aspect', String(aspectRatio));
+    }
+  }, [aspectRatio]);
+
   const triggerFileSelect = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -367,15 +376,6 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       </div>
     );
   }
-
-  const aspectRatio = previewSize.w && previewSize.h ? previewSize.w / previewSize.h : 1;
-  const aspectRatioStr = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : 'auto';
-
-  useEffect(() => {
-    if (canvasContainerRef.current) {
-      canvasContainerRef.current.style.setProperty('--aspect', String(aspectRatio));
-    }
-  }, [aspectRatio]);
 
   return (
     <div className="workspace-panel" ref={containerRef}>
