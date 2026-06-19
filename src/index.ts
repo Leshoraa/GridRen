@@ -56,3 +56,9 @@ if (!isServerless && typeof Bun !== "undefined" && import.meta.main) {
 }
 
 export { app };
+
+export default {
+  fetch(request: Request) {
+    return app.handle(request);
+  }
+};
