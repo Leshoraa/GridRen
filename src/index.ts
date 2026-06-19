@@ -45,10 +45,4 @@ if (!isServerless && typeof Bun !== "undefined" && import.meta.main) {
   console.log(`Swagger docs available at http://${app.server?.hostname}:${app.server?.port}/swagger`);
 }
 
-export { app };
-
-export default {
-  fetch(request: Request) {
-    return app.handle(request);
-  }
-};
+export default app;
