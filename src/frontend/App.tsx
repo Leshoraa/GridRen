@@ -234,6 +234,26 @@ const flipMaskV = (mask: Uint8ClampedArray, w: number, h: number): Uint8ClampedA
   return dest;
 };
 
+const cropPixels = (
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  cropX: number,
+  cropY: number,
+  cropW: number,
+  cropH: number
+): Uint8ClampedArray => {
+  const next = new Uint8ClampedArray(cropW * cropH * 4);
+  for (let dy = 0; dy < cropH; dy++) {
+    const sy = cropY + dy;
+    const sx = cropX;
+    const sourceIdx = (sy * w + sx) * 4;
+    const destIdx = dy * cropW * 4;
+    next.set(pixels.subarray(sourceIdx, sourceIdx + cropW * 4), destIdx);
+  }
+  return next;
+};
+
 export const App: React.FC = () => {
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
   const [imageMeta, setImageMeta] = useState({ name: '', size: '', dim: '' });
@@ -267,6 +287,11 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('presets');
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  const [cropMode, setCropMode] = useState(false);
+  const [cropAspectRatio, setCropAspectRatio] = useState<string>('free');
+  const [customRatioW, setCustomRatioW] = useState<number>(16);
+  const [customRatioH, setCustomRatioH] = useState<number>(9);
 
   const [historyStack, setHistoryStack] = useState<HistoryState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -624,6 +649,73 @@ export const App: React.FC = () => {
     showToast('Flipped Vertically');
   };
 
+  const applyCrop = () => {
+    const cropRect = canvasRef.current?.getCurrentCropRect();
+    const orig = canvasRef.current?.getOrigPixels();
+    if (!cropRect || !orig || !previewW || !previewH || !imageElement) return;
+
+    const scaleX = imageElement.naturalWidth / previewW;
+    const scaleY = imageElement.naturalHeight / previewH;
+    const naturalX = Math.round(cropRect.x * scaleX);
+    const naturalY = Math.round(cropRect.y * scaleY);
+    const naturalW = Math.round(cropRect.w * scaleX);
+    const naturalH = Math.round(cropRect.h * scaleY);
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = naturalW;
+    cropCanvas.height = naturalH;
+    const cropCtx = cropCanvas.getContext('2d');
+    if (cropCtx) {
+      cropCtx.drawImage(
+        imageElement,
+        naturalX, naturalY, naturalW, naturalH,
+        0, 0, naturalW, naturalH
+      );
+      const croppedDataUrl = cropCanvas.toDataURL('image/png');
+      const newImg = new Image();
+      newImg.onload = () => {
+        setImageElement(newImg);
+        setImageMeta(prev => ({
+          ...prev,
+          dim: `${newImg.naturalWidth} x ${newImg.naturalHeight}`,
+          size: `${Math.round((croppedDataUrl.length * 3) / 4 / 1024)} KB`
+        }));
+      };
+      newImg.src = croppedDataUrl;
+    }
+
+    const nextPixels = cropPixels(orig, previewW, previewH, cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+
+    const nextMasks = masks.map(mask => {
+      const newBuf = new Uint8ClampedArray(cropRect.w * cropRect.h);
+      for (let dy = 0; dy < cropRect.h; dy++) {
+        const sy = cropRect.y + dy;
+        const sx = cropRect.x;
+        const sourceOffset = (sy * previewW + sx);
+        const destOffset = dy * cropRect.w;
+        newBuf.set(mask.buffer.subarray(sourceOffset, sourceOffset + cropRect.w), destOffset);
+      }
+      return {
+        ...mask,
+        buffer: newBuf
+      };
+    });
+
+    canvasRef.current?.setOrigPixels(nextPixels, cropRect.w, cropRect.h);
+    setPreviewW(cropRect.w);
+    setPreviewH(cropRect.h);
+    setMasks(nextMasks);
+
+    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, cropRect.w, cropRect.h);
+    setCropMode(false);
+    showToast('Image cropped successfully');
+  };
+
+  const cancelCrop = () => {
+    setCropMode(false);
+    showToast('Crop canceled');
+  };
+
 
   const handleTabClick = (tab: TabType) => {
     if (activeTab === tab) {
@@ -679,6 +771,10 @@ export const App: React.FC = () => {
             setPan={setPan}
             splitRatio={splitRatio}
             setSplitRatio={setSplitRatio}
+            cropMode={cropMode}
+            cropAspectRatio={cropAspectRatio}
+            customRatioW={customRatioW}
+            customRatioH={customRatioH}
           />
 
           {imageElement && (
@@ -812,6 +908,16 @@ export const App: React.FC = () => {
                   onFlipV={flipV}
                   splitRatio={splitRatio}
                   onToggleSplit={() => setSplitRatio(prev => prev === null ? 0.5 : null)}
+                  cropMode={cropMode}
+                  setCropMode={setCropMode}
+                  cropAspectRatio={cropAspectRatio}
+                  setCropAspectRatio={setCropAspectRatio}
+                  customRatioW={customRatioW}
+                  setCustomRatioW={setCustomRatioW}
+                  customRatioH={customRatioH}
+                  setCustomRatioH={setCustomRatioH}
+                  onApplyCrop={applyCrop}
+                  onCancelCrop={cancelCrop}
                 />
               )}
             </div>

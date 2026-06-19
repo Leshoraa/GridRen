@@ -16,6 +16,7 @@ export interface CanvasWorkspaceHandle {
   liveRedraw: (adj: AdjustmentState, crv: CurvesState, pre: PresetType) => void;
   getOrigPixels: () => Uint8ClampedArray | null;
   setOrigPixels: (pixels: Uint8ClampedArray, w: number, h: number) => void;
+  getCurrentCropRect: () => { x: number; y: number; w: number; h: number } | null;
 }
 
 interface CanvasWorkspaceProps {
@@ -39,6 +40,10 @@ interface CanvasWorkspaceProps {
   setPan: (pan: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   splitRatio: number | null;
   setSplitRatio: (ratio: number | null) => void;
+  cropMode: boolean;
+  cropAspectRatio: string;
+  customRatioW: number;
+  customRatioH: number;
 }
 
 
@@ -48,6 +53,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     brushSize, brushFeather, brushOpacity, brushMode,
     onMaskUpdate, onImageLoad, showOverlay, uiCollapsed,
     zoom, pan, setPan, splitRatio, setSplitRatio,
+    cropMode, cropAspectRatio, customRatioW, customRatioH,
   } = props;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -94,6 +100,8 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
   useEffect(() => { liveShowOverlayRef.current = showOverlay; }, [showOverlay]);
   useEffect(() => { liveSplitRatioRef.current = splitRatio; }, [splitRatio]);
 
+  const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
   useImperativeHandle(ref, () => ({
     liveRedraw: (adj, crv, pre) => {
       liveAdjRef.current = adj;
@@ -107,7 +115,184 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       setPreviewSize({ w, h });
       scheduleRender();
     },
-  }), []);
+    getCurrentCropRect: () => cropRect,
+  }), [cropRect]);
+
+
+
+  useEffect(() => {
+    if (!cropMode || !previewSize.w || !previewSize.h) {
+      setCropRect(null);
+      return;
+    }
+
+    let ratio = 1;
+    let lockRatio = false;
+    if (cropAspectRatio === 'free') {
+      lockRatio = false;
+    } else {
+      lockRatio = true;
+      if (cropAspectRatio === '1:1') ratio = 1;
+      else if (cropAspectRatio === '16:9') ratio = 16 / 9;
+      else if (cropAspectRatio === '4:3') ratio = 4 / 3;
+      else if (cropAspectRatio === '3:2') ratio = 3 / 2;
+      else if (cropAspectRatio === 'custom') {
+        ratio = customRatioW / customRatioH;
+      }
+    }
+
+    const canvasW = previewSize.w;
+    const canvasH = previewSize.h;
+    const canvasRatio = canvasW / canvasH;
+
+    let cropW = canvasW;
+    let cropH = canvasH;
+
+    if (lockRatio) {
+      if (ratio > canvasRatio) {
+        cropW = canvasW * 0.9;
+        cropH = cropW / ratio;
+      } else {
+        cropH = canvasH * 0.9;
+        cropW = cropH * ratio;
+      }
+    } else {
+      cropW = canvasW * 0.9;
+      cropH = canvasH * 0.9;
+    }
+
+    const cropX = (canvasW - cropW) / 2;
+    const cropY = (canvasH - cropH) / 2;
+
+    setCropRect({
+      x: Math.round(cropX),
+      y: Math.round(cropY),
+      w: Math.round(cropW),
+      h: Math.round(cropH),
+    });
+  }, [cropMode, cropAspectRatio, customRatioW, customRatioH, previewSize]);
+
+  const handleCropMouseDown = (
+    action: 'move' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br',
+    e: React.MouseEvent
+  ) => {
+    e.preventDefault();
+    if (!cropRect) return;
+
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+    const startRect = { ...cropRect };
+    const zoomScale = zoom / 100;
+
+    let ratio = 1;
+    let lockRatio = false;
+    if (cropAspectRatio === 'free') {
+      lockRatio = false;
+    } else {
+      lockRatio = true;
+      if (cropAspectRatio === '1:1') ratio = 1;
+      else if (cropAspectRatio === '16:9') ratio = 16 / 9;
+      else if (cropAspectRatio === '4:3') ratio = 4 / 3;
+      else if (cropAspectRatio === '3:2') ratio = 3 / 2;
+      else if (cropAspectRatio === 'custom') {
+        ratio = customRatioW / customRatioH;
+      }
+    }
+
+    const minW = 30;
+    const minH = minW / (lockRatio ? ratio : 1);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = (moveEvent.clientX - startMouseX) / zoomScale;
+      const dy = (moveEvent.clientY - startMouseY) / zoomScale;
+
+      const canvasW = previewSize.w;
+      const canvasH = previewSize.h;
+
+      let newX = startRect.x;
+      let newY = startRect.y;
+      let newW = startRect.w;
+      let newH = startRect.h;
+
+      if (action === 'move') {
+        newX = Math.max(0, Math.min(canvasW - startRect.w, startRect.x + dx));
+        newY = Math.max(0, Math.min(canvasH - startRect.h, startRect.y + dy));
+      } else if (lockRatio) {
+        if (action === 'resize-br') {
+          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
+          newH = newW / ratio;
+          if (startRect.y + newH > canvasH) {
+            newH = canvasH - startRect.y;
+            newW = newH * ratio;
+          }
+        } else if (action === 'resize-tr') {
+          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
+          newH = newW / ratio;
+          newY = startRect.y + startRect.h - newH;
+          if (newY < 0) {
+            newY = 0;
+            newH = startRect.y + startRect.h;
+            newW = newH * ratio;
+          }
+        } else if (action === 'resize-bl') {
+          const possibleX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
+          newW = startRect.w + (startRect.x - possibleX);
+          newH = newW / ratio;
+          newX = startRect.x + startRect.w - newW;
+          if (startRect.y + newH > canvasH) {
+            newH = canvasH - startRect.y;
+            newW = newH * ratio;
+            newX = startRect.x + startRect.w - newW;
+          }
+        } else if (action === 'resize-tl') {
+          const possibleX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
+          newW = startRect.w + (startRect.x - possibleX);
+          newH = newW / ratio;
+          newX = startRect.x + startRect.w - newW;
+          newY = startRect.y + startRect.h - newH;
+          if (newY < 0) {
+            newY = 0;
+            newH = startRect.y + startRect.h;
+            newW = newH * ratio;
+            newX = startRect.x + startRect.w - newW;
+          }
+        }
+      } else {
+        if (action === 'resize-br') {
+          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
+          newH = Math.max(minH, Math.min(canvasH - startRect.y, startRect.h + dy));
+        } else if (action === 'resize-tr') {
+          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
+          newY = Math.max(0, Math.min(startRect.y + startRect.h - minH, startRect.y + dy));
+          newH = startRect.h + (startRect.y - newY);
+        } else if (action === 'resize-bl') {
+          newX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
+          newW = startRect.w + (startRect.x - newX);
+          newH = Math.max(minH, Math.min(canvasH - startRect.y, startRect.h + dy));
+        } else if (action === 'resize-tl') {
+          newX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
+          newW = startRect.w + (startRect.x - newX);
+          newY = Math.max(0, Math.min(startRect.y + startRect.h - minH, startRect.y + dy));
+          newH = startRect.h + (startRect.y - newY);
+        }
+      }
+
+      setCropRect({
+        x: Math.round(newX),
+        y: Math.round(newY),
+        w: Math.round(newW),
+        h: Math.round(newH),
+      });
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
 
 
   useEffect(() => {
@@ -510,6 +695,42 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         />
+        {cropMode && cropRect && (
+          <div className="crop-overlay">
+            <div
+              className="crop-box"
+              style={{
+                left: `${cropRect.x}px`,
+                top: `${cropRect.y}px`,
+                width: `${cropRect.w}px`,
+                height: `${cropRect.h}px`,
+              }}
+              onMouseDown={e => handleCropMouseDown('move', e)}
+            >
+              <div className="crop-grid-line-h1" />
+              <div className="crop-grid-line-h2" />
+              <div className="crop-grid-line-v1" />
+              <div className="crop-grid-line-v2" />
+
+              <div
+                className="crop-handle crop-handle-tl"
+                onMouseDown={e => { e.stopPropagation(); handleCropMouseDown('resize-tl', e); }}
+              />
+              <div
+                className="crop-handle crop-handle-tr"
+                onMouseDown={e => { e.stopPropagation(); handleCropMouseDown('resize-tr', e); }}
+              />
+              <div
+                className="crop-handle crop-handle-bl"
+                onMouseDown={e => { e.stopPropagation(); handleCropMouseDown('resize-bl', e); }}
+              />
+              <div
+                className="crop-handle crop-handle-br"
+                onMouseDown={e => { e.stopPropagation(); handleCropMouseDown('resize-br', e); }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
