@@ -1,3 +1,7 @@
 import { app } from "../src/index";
 
-export default app;
+export default {
+  fetch(request: Request) {
+    return app.handle(request);
+  }
+};
