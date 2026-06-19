@@ -62,6 +62,7 @@ export const App: React.FC = () => {
 
   const [uiCollapsed, setUiCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'presets' | 'adjustments' | 'curves' | 'masks'>('presets');
+  const [zoom, setZoom] = useState(100);
 
   const [historyStack, setHistoryStack] = useState<HistoryState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -356,6 +357,8 @@ export const App: React.FC = () => {
         exportHighRes={exportHighRes}
         uiCollapsed={uiCollapsed}
         setUiCollapsed={setUiCollapsed}
+        zoom={zoom}
+        setZoom={setZoom}
       />
 
       <main className={`main-layout ${!imageElement ? 'no-image' : ''} ${uiCollapsed ? 'collapsed-ui' : ''}`}>
@@ -375,6 +378,8 @@ export const App: React.FC = () => {
             onImageLoad={handleImageLoad}
             showOverlay={showOverlay}
             uiCollapsed={uiCollapsed}
+            zoom={zoom}
+            setZoom={setZoom}
           />
 
           {imageElement && (

@@ -13,6 +13,8 @@ interface AppHeaderProps {
   exportHighRes: () => void;
   uiCollapsed: boolean;
   setUiCollapsed: (collapsed: boolean) => void;
+  zoom: number;
+  setZoom: (zoom: number | ((prev: number) => number)) => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -27,6 +29,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   exportHighRes,
   uiCollapsed,
   setUiCollapsed,
+  zoom,
+  setZoom,
 }) => {
   return (
     <header className="app-header">
@@ -53,13 +57,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="app-controls-top">
         {imageElement && (
           <>
+            <div className="zoom-controls-header">
+              <button className="zoom-btn" onClick={() => setZoom(prev => Math.max(25, prev - 10))}>-</button>
+              <span className="zoom-value">{zoom}%</span>
+              <button className="zoom-btn" onClick={() => setZoom(prev => Math.min(200, prev + 10))}>+</button>
+              <button className="zoom-btn" onClick={() => setZoom(100)}>Fit</button>
+            </div>
             <button className="btn" onClick={handleUndo} disabled={historyIndex <= 0}>Undo</button>
             <button className="btn" onClick={handleRedo} disabled={historyIndex >= historyStackLength - 1}>Redo</button>
             <button className="btn btn-accent" onClick={exportHighRes}>Export</button>
-            <button
-              className="btn"
-              onClick={() => setUiCollapsed(!uiCollapsed)}
-            >
+            <button className="btn" onClick={() => setUiCollapsed(!uiCollapsed)}>
               {uiCollapsed ? 'Expand UI' : 'Collapse UI'}
             </button>
           </>

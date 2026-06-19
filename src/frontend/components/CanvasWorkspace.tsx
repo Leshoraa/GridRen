@@ -26,6 +26,8 @@ interface CanvasWorkspaceProps {
   onImageLoad: (img: HTMLImageElement, width: number, height: number) => void;
   showOverlay: boolean;
   uiCollapsed: boolean;
+  zoom: number;
+  setZoom: (zoom: number | ((prev: number) => number)) => void;
 }
 
 export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
@@ -43,6 +45,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   onImageLoad,
   showOverlay,
   uiCollapsed,
+  zoom,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -53,7 +56,6 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
-  const [zoom, setZoom] = useState(100);
 
   const activeMask = masks.find(m => m.id === activeMaskId);
 
@@ -397,12 +399,6 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         />
-      </div>
-      <div className="zoom-controls-floating">
-        <button className="zoom-btn" onClick={() => setZoom(prev => Math.max(25, prev - 10))}>-</button>
-        <span className="zoom-value">{zoom}%</span>
-        <button className="zoom-btn" onClick={() => setZoom(prev => Math.min(200, prev + 10))}>+</button>
-        <button className="zoom-btn" onClick={() => setZoom(100)}>Fit</button>
       </div>
     </div>
   );

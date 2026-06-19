@@ -6,14 +6,20 @@ import { configuration } from "./config";
 import { errorHandlingMiddleware } from "./middleware/error";
 import { apiRouter } from "./routes";
 
+const NO_CACHE = "no-store, no-cache, must-revalidate, proxy-revalidate";
+
 const app = new Elysia()
   .use(cors())
+  .get("/styles.css", () => new Response(Bun.file("public/styles.css"), {
+    headers: { "Content-Type": "text/css;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+  }))
+  .get("/bundle.js", () => new Response(Bun.file("public/bundle.js"), {
+    headers: { "Content-Type": "application/javascript;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+  }))
   .use(staticPlugin({
     assets: "public",
     prefix: "",
-    headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate"
-    }
+    headers: { "Cache-Control": NO_CACHE }
   }))
   .use(
     swagger({
@@ -28,10 +34,9 @@ const app = new Elysia()
   )
   .use(errorHandlingMiddleware)
   .use(apiRouter)
-  .get("/", ({ set }) => {
-    set.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate";
-    return Bun.file("public/index.html");
-  })
+  .get("/", () => new Response(Bun.file("public/index.html"), {
+    headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+  }))
   .listen(configuration.port);
 
 console.log(`Server running at http://${app.server?.hostname}:${app.server?.port}`);

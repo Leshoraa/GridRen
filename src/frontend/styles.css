@@ -101,7 +101,8 @@ body {
 
 .app-controls-top {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  align-items: center;
 }
 
 .btn {
@@ -679,20 +680,13 @@ body {
   padding-bottom: 8px;
 }
 
-.zoom-controls-floating {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+.zoom-controls-header {
   display: flex;
   align-items: center;
   gap: 2px;
-  background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
-  padding: 4px;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  z-index: 100;
+  padding: 2px;
+  border-radius: 4px;
 }
 
 .zoom-btn {
@@ -705,8 +699,8 @@ body {
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  padding: 5px 10px;
-  border-radius: 5px;
+  padding: 4px 8px;
+  border-radius: 3px;
   transition: all 0.15s ease;
   line-height: 1;
 }
@@ -718,12 +712,12 @@ body {
 
 .zoom-value {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text-primary);
-  min-width: 40px;
+  min-width: 36px;
   text-align: center;
-  padding: 5px 4px;
+  padding: 4px 4px;
   border-left: 1px solid var(--border-color);
   border-right: 1px solid var(--border-color);
 }
