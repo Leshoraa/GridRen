@@ -17,8 +17,13 @@ export const AdjustmentSliders: React.FC<AdjustmentSlidersProps> = ({
     { key: 'exposure' as keyof AdjustmentState, label: 'Exposure', min: -2, max: 2, step: 0.01 },
     { key: 'contrast' as keyof AdjustmentState, label: 'Contrast', min: 0, max: 2, step: 0.01 },
     { key: 'saturation' as keyof AdjustmentState, label: 'Saturation', min: 0, max: 2, step: 0.01 },
+    { key: 'vibrance' as keyof AdjustmentState, label: 'Vibrance', min: -1, max: 1, step: 0.01 },
     { key: 'highlights' as keyof AdjustmentState, label: 'Highlights', min: -1, max: 1, step: 0.01 },
     { key: 'shadows' as keyof AdjustmentState, label: 'Shadows', min: -1, max: 1, step: 0.01 },
+    { key: 'whites' as keyof AdjustmentState, label: 'Whites', min: -1, max: 1, step: 0.01 },
+    { key: 'blacks' as keyof AdjustmentState, label: 'Blacks', min: -1, max: 1, step: 0.01 },
+    { key: 'gamma' as keyof AdjustmentState, label: 'Gamma', min: 0.5, max: 2.0, step: 0.01 },
+    { key: 'fade' as keyof AdjustmentState, label: 'Fade / Matte', min: 0, max: 1, step: 0.01 },
   ];
 
   const colorSliders = [

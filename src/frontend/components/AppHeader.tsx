@@ -1,5 +1,4 @@
 import React from 'react';
-import { Sun, Moon, ChevronLeft } from 'lucide-react';
 
 interface AppHeaderProps {
   theme: 'light' | 'dark';
@@ -47,7 +46,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             onClick={onBack}
             title="Back to start screen"
           >
-            <ChevronLeft size={18} />
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
           </button>
         )}
         <div className="app-title">GridRen</div>
@@ -56,7 +55,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
           title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
         >
-          {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
+          {theme === 'light' ? (
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>light_mode</span>
+          ) : (
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>dark_mode</span>
+          )}
         </button>
       </div>
       <div className="app-metadata">

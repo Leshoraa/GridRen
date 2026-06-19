@@ -2,11 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CanvasWorkspace, MaskData, CanvasWorkspaceHandle } from './components/CanvasWorkspace';
 import { AppHeader } from './components/AppHeader';
 import { PresetsModule } from './components/PresetsModule';
-import { AdjustmentsModule } from './components/AdjustmentsModule';
+import { AdjustmentSliders } from './components/AdjustmentSliders';
+import { ColorMixerModule } from './components/ColorMixerModule';
+import { ColorGradingModule } from './components/ColorGradingModule';
+import { DetailModule } from './components/DetailModule';
 import { CurvesModule } from './components/CurvesModule';
 import { MasksModule } from './components/MasksModule';
 import { TransformModule } from './components/TransformModule';
-import { SidebarTabs } from './components/SidebarTabs';
+import { SidebarTabs, TabType } from './components/SidebarTabs';
+import { CreativeEffectsModule } from './components/CreativeEffectsModule';
+import { StylizeModule } from './components/StylizeModule';
+import { LensModule } from './components/LensModule';
 
 import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels } from './utils/imageProcess';
 
@@ -64,6 +70,51 @@ const initialAdjustments = (): AdjustmentState => ({
   hslHueMagenta: 0,
   hslSatMagenta: 0,
   hslLumMagenta: 0,
+
+  vibrance: 0,
+  whites: 0,
+  blacks: 0,
+  gamma: 1.0,
+  fade: 0,
+
+  texture: 0,
+  sharpeningRadius: 1.0,
+  denoiseDetail: 0.5,
+  defringe: 0,
+
+  halationIntensity: 0,
+  halationThreshold: 0.8,
+  halationRadius: 8,
+  mistIntensity: 0,
+
+  glitchSplit: 0,
+  glitchBlock: 0,
+
+  colorLeakIntensity: 0,
+  colorLeakHue: 15,
+
+  duoShadowHue: 220,
+  duoShadowSat: 0.5,
+  duoHighlightHue: 40,
+  duoHighlightSat: 0.5,
+  duoMix: 0,
+
+  sepia: 0,
+  solarize: 0,
+  posterize: 64,
+  thermal: 0,
+  crossProcess: 0,
+
+  vignetteFeather: 0.5,
+  vignetteRoundness: 0.5,
+
+  grainChroma: 0,
+
+  fisheye: 0,
+  distortion: 0,
+
+  borderWidth: 0,
+  borderHue: 0,
 });
 
 const initialCurves = (): CurvesState => ({
@@ -213,7 +264,7 @@ export const App: React.FC = () => {
   const [showOverlay, setShowOverlay] = useState(false);
 
   const [uiCollapsed, setUiCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'presets' | 'adjustments' | 'curves' | 'masks' | 'crop'>('presets');
+  const [activeTab, setActiveTab] = useState<TabType>('presets');
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
 
@@ -574,7 +625,7 @@ export const App: React.FC = () => {
   };
 
 
-  const handleTabClick = (tab: 'presets' | 'adjustments' | 'curves' | 'masks' | 'crop') => {
+  const handleTabClick = (tab: TabType) => {
     if (activeTab === tab) {
       setUiCollapsed(!uiCollapsed);
     } else {
@@ -654,12 +705,65 @@ export const App: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'adjustments' && (
-                <AdjustmentsModule
-                  activeMask={activeMask}
-                  globalAdjustments={globalAdjustments}
-                  handleAdjustmentChange={handleAdjustmentChange}
-                  commitAdjustmentHistory={commitAdjustmentHistory}
+              {activeTab === 'basic' && (
+                <div className="control-module active-module">
+                  <div className="module-title-clean">
+                    {activeMask ? `Basic Sliders (${activeMask.name})` : 'Basic Sliders (Global)'}
+                  </div>
+                  <div className="module-content" onMouseUp={commitAdjustmentHistory}>
+                    <AdjustmentSliders
+                      adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                      onChange={handleAdjustmentChange}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'hsl' && (
+                <ColorMixerModule
+                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                  onChange={handleAdjustmentChange}
+                  onMouseUp={commitAdjustmentHistory}
+                />
+              )}
+
+              {activeTab === 'grading' && (
+                <ColorGradingModule
+                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                  onChange={handleAdjustmentChange}
+                  onMouseUp={commitAdjustmentHistory}
+                />
+              )}
+
+              {activeTab === 'detail' && (
+                <DetailModule
+                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                  onChange={handleAdjustmentChange}
+                  onMouseUp={commitAdjustmentHistory}
+                />
+              )}
+
+              {activeTab === 'effects' && (
+                <CreativeEffectsModule
+                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                  onChange={handleAdjustmentChange}
+                  onMouseUp={commitAdjustmentHistory}
+                />
+              )}
+
+              {activeTab === 'stylize' && (
+                <StylizeModule
+                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                  onChange={handleAdjustmentChange}
+                  onMouseUp={commitAdjustmentHistory}
+                />
+              )}
+
+              {activeTab === 'lens' && (
+                <LensModule
+                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
+                  onChange={handleAdjustmentChange}
+                  onMouseUp={commitAdjustmentHistory}
                 />
               )}
 
@@ -699,7 +803,7 @@ export const App: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'crop' && (
+              {activeTab === 'geometry' && (
                 <TransformModule
                   onRotateCW={rotateCW}
                   onRotateCCW={rotateCCW}

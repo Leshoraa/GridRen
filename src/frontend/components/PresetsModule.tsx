@@ -14,7 +14,7 @@ export const PresetsModule: React.FC<PresetsModuleProps> = ({
     <div className="control-module active-module">
       <div className="module-title-clean">Presets</div>
       <div className="preset-grid">
-        {(['none', 'mono', 'matte', 'brutalist'] as PresetType[]).map(type => (
+        {(['none', 'mono', 'matte', 'brutalist', 'cine', 'vintage', 'cyberpunk', 'forest', 'warmgold'] as PresetType[]).map(type => (
           <div
             key={type}
             className={`preset-card ${globalPreset === type ? 'active' : ''}`}

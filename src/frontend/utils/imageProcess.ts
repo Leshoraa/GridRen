@@ -52,6 +52,51 @@ export interface AdjustmentState {
   hslHueMagenta: number;
   hslSatMagenta: number;
   hslLumMagenta: number;
+
+  vibrance: number;
+  whites: number;
+  blacks: number;
+  gamma: number;
+  fade: number;
+
+  texture: number;
+  sharpeningRadius: number;
+  denoiseDetail: number;
+  defringe: number;
+
+  halationIntensity: number;
+  halationThreshold: number;
+  halationRadius: number;
+  mistIntensity: number;
+
+  glitchSplit: number;
+  glitchBlock: number;
+
+  colorLeakIntensity: number;
+  colorLeakHue: number;
+
+  duoShadowHue: number;
+  duoShadowSat: number;
+  duoHighlightHue: number;
+  duoHighlightSat: number;
+  duoMix: number;
+
+  sepia: number;
+  solarize: number;
+  posterize: number;
+  thermal: number;
+  crossProcess: number;
+
+  vignetteFeather: number;
+  vignetteRoundness: number;
+
+  grainChroma: number;
+
+  fisheye: number;
+  distortion: number;
+
+  borderWidth: number;
+  borderHue: number;
 }
 
 export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
@@ -118,7 +163,7 @@ export interface CurvesState {
   blue: CurvePoint[];
 }
 
-export type PresetType = 'none' | 'mono' | 'matte' | 'brutalist';
+export type PresetType = 'none' | 'mono' | 'matte' | 'brutalist' | 'cine' | 'vintage' | 'cyberpunk' | 'forest' | 'warmgold';
 
 export function calculateSplineLUT(points: CurvePoint[]): Uint8Array {
   const lut = new Uint8Array(256);
@@ -374,6 +419,41 @@ export function processPixels(
   const clarity = adjustments.clarity || 0;
   const dehaze = adjustments.dehaze || 0;
 
+  const vib = adjustments.vibrance || 0;
+  const white = adjustments.whites || 0;
+  const black = adjustments.blacks || 0;
+  const gam = adjustments.gamma !== undefined ? adjustments.gamma : 1;
+  const fd = adjustments.fade || 0;
+  const tex = adjustments.texture || 0;
+  const shpRad = Math.round(adjustments.sharpeningRadius || 1);
+  const denDetail = adjustments.denoiseDetail || 0;
+  const defr = adjustments.defringe || 0;
+  const halIntensity = adjustments.halationIntensity || 0;
+  const halThresh = adjustments.halationThreshold || 0.8;
+  const halRad = adjustments.halationRadius || 8;
+  const mist = adjustments.mistIntensity || 0;
+  const glSplit = Math.round(adjustments.glitchSplit || 0);
+  const glBlock = Math.round(adjustments.glitchBlock || 0);
+  const leakInt = adjustments.colorLeakIntensity || 0;
+  const leakHue = adjustments.colorLeakHue !== undefined ? adjustments.colorLeakHue : 15;
+  const duoM = adjustments.duoMix || 0;
+  const duoSH = adjustments.duoShadowHue || 0;
+  const duoSS = adjustments.duoShadowSat || 0;
+  const duoHH = adjustments.duoHighlightHue || 0;
+  const duoHS = adjustments.duoHighlightSat || 0;
+  const sep = adjustments.sepia || 0;
+  const sol = adjustments.solarize || 0;
+  const post = adjustments.posterize || 0;
+  const therm = adjustments.thermal || 0;
+  const cp = adjustments.crossProcess || 0;
+  const vigFeath = adjustments.vignetteFeather !== undefined ? adjustments.vignetteFeather : 0.5;
+  const vigRound = adjustments.vignetteRoundness !== undefined ? adjustments.vignetteRoundness : 0.5;
+  const grChroma = adjustments.grainChroma || 0;
+  const fish = adjustments.fisheye || 0;
+  const disto = adjustments.distortion || 0;
+  const bWidth = adjustments.borderWidth || 0;
+  const bHue = adjustments.borderHue !== undefined ? adjustments.borderHue : 0;
+
   let tintSR = 0, tintSG = 0, tintSB = 0;
   if (adjustments.colorGradingShadowsSat > 0) {
     const [tr, tg, tb] = hslToRgb(adjustments.colorGradingShadowsHue, adjustments.colorGradingShadowsSat, 0.5);
@@ -422,29 +502,86 @@ export function processPixels(
     const extracted = extractHighlights(src, w, h, adjustments.bloomThreshold);
     bloomBuffer = boxBlur(extracted, w, h, adjustments.bloomRadius);
   }
+
+  let halationBuffer: Uint8ClampedArray | null = null;
+  if (halIntensity > 0 && halRad > 0) {
+    const extracted = extractHighlights(src, w, h, halThresh);
+    halationBuffer = boxBlur(extracted, w, h, halRad);
+  }
+
+  let mistBuffer: Uint8ClampedArray | null = null;
+  if (mist > 0) {
+    mistBuffer = boxBlur(src, w, h, 20);
+  }
   
   for (let i = 0; i < src.length; i += 4) {
     const xCo = (i / 4) % w;
     const yCo = Math.floor((i / 4) / w);
-    
-    let origR = src[i];
-    let origG = src[i + 1];
-    let origB = src[i + 2];
-    const origA = src[i + 3];
+
+    let srcX = xCo;
+    let srcY = yCo;
+
+    if (fish !== 0 || disto !== 0) {
+      const nx = (xCo - w / 2) / (w / 2);
+      const ny = (yCo - h / 2) / (h / 2);
+      const rSq = nx * nx + ny * ny;
+      const theta = Math.atan2(ny, nx);
+      let rNew = Math.sqrt(rSq);
+      
+      if (fish !== 0) {
+        rNew = Math.sin(rNew * Math.PI / 2) * fish + rNew * (1 - fish);
+      }
+      if (disto !== 0) {
+        rNew = rNew + disto * 0.2 * Math.pow(rNew, 3);
+      }
+      
+      const newNx = rNew * Math.cos(theta);
+      const newNy = rNew * Math.sin(theta);
+      
+      srcX = Math.round((newNx * w / 2) + w / 2);
+      srcY = Math.round((newNy * h / 2) + h / 2);
+      
+      srcX = Math.max(0, Math.min(w - 1, srcX));
+      srcY = Math.max(0, Math.min(h - 1, srcY));
+    }
+
+    const srcIdx = (srcY * w + srcX) * 4;
+    let origR = src[srcIdx];
+    let origG = src[srcIdx + 1];
+    let origB = src[srcIdx + 2];
+    const origA = src[srcIdx + 3];
     
     if (chromAb > 0) {
       const shift = Math.round(chromAb);
-      const rX = Math.max(0, Math.min(w - 1, xCo - shift));
-      const bX = Math.max(0, Math.min(w - 1, xCo + shift));
-      origR = src[(yCo * w + rX) * 4];
-      origB = src[(yCo * w + bX) * 4 + 2];
+      const rX = Math.max(0, Math.min(w - 1, srcX - shift));
+      const bX = Math.max(0, Math.min(w - 1, srcX + shift));
+      origR = src[(srcY * w + rX) * 4];
+      origB = src[(srcY * w + bX) * 4 + 2];
     }
 
-    if (sharp > 0 || denoise > 0) {
-      const lIdx = xCo > 0 ? i - 4 : i;
-      const rIdx = xCo < w - 1 ? i + 4 : i;
-      const tIdx = yCo > 0 ? i - w * 4 : i;
-      const bIdx = yCo < h - 1 ? i + w * 4 : i;
+    if (glSplit > 0) {
+      const lineShift = Math.sin(srcY * 0.1) > 0.5 ? glSplit : Math.round(glSplit * 0.3);
+      const rX = Math.max(0, Math.min(w - 1, srcX - lineShift));
+      const bX = Math.max(0, Math.min(w - 1, srcX + lineShift));
+      origR = src[(srcY * w + rX) * 4];
+      origB = src[(srcY * w + bX) * 4 + 2];
+    }
+
+    if (glBlock > 0) {
+      const blockSize = Math.max(1, Math.round(glBlock * 0.2));
+      const blockX = Math.floor(srcX / blockSize) * blockSize;
+      const blockY = Math.floor(srcY / blockSize) * blockSize;
+      const blockIdx = (blockY * w + blockX) * 4;
+      origR = src[blockIdx];
+      origG = src[blockIdx + 1];
+      origB = src[blockIdx + 2];
+    }
+
+    if (sharp > 0 || denoise > 0 || tex !== 0) {
+      const lIdx = srcX >= shpRad ? srcIdx - 4 * shpRad : srcIdx;
+      const rIdx = srcX < w - shpRad ? srcIdx + 4 * shpRad : srcIdx;
+      const tIdx = srcY >= shpRad ? srcIdx - w * 4 * shpRad : srcIdx;
+      const bIdx = srcY < h - shpRad ? srcIdx + w * 4 * shpRad : srcIdx;
 
       const lR = src[lIdx], lG = src[lIdx + 1], lB = src[lIdx + 2];
       const rR = src[rIdx], rG = src[rIdx + 1], rB = src[rIdx + 2];
@@ -461,9 +598,35 @@ export function processPixels(
         const avgR = (lR + rR + tR + bR + 4 * origR) / 8;
         const avgG = (lG + rG + tG + bG + 4 * origG) / 8;
         const avgB = (lB + rB + tB + bB + 4 * origB) / 8;
-        origR = origR + denoise * (avgR - origR);
-        origG = origG + denoise * (avgG - origG);
-        origB = origB + denoise * (avgB - origB);
+        const localDiff = Math.abs(origR - avgR) + Math.abs(origG - avgG) + Math.abs(origB - avgB);
+        const edgeFactor = Math.max(0, 1 - (localDiff / 100) * denDetail);
+        origR = origR + denoise * edgeFactor * (avgR - origR);
+        origG = origG + denoise * edgeFactor * (avgG - origG);
+        origB = origB + denoise * edgeFactor * (avgB - origB);
+      }
+
+      if (tex !== 0) {
+        const tRad = 2;
+        const lIdx2 = srcX >= tRad ? srcIdx - 4 * tRad : srcIdx;
+        const rIdx2 = srcX < w - tRad ? srcIdx + 4 * tRad : srcIdx;
+        const tIdx2 = srcY >= tRad ? srcIdx - w * 4 * tRad : srcIdx;
+        const bIdx2 = srcY < h - tRad ? srcIdx + w * 4 * tRad : srcIdx;
+
+        const diffR = 4 * origR - src[lIdx2] - src[rIdx2] - src[tIdx2] - src[bIdx2];
+        const diffG = 4 * origG - src[lIdx2 + 1] - src[rIdx2 + 1] - src[tIdx2 + 1] - src[bIdx2 + 1];
+        const diffB = 4 * origB - src[lIdx2 + 2] - src[rIdx2 + 2] - src[tIdx2 + 2] - src[bIdx2 + 2];
+
+        origR += tex * 0.5 * diffR;
+        origG += tex * 0.5 * diffG;
+        origB += tex * 0.5 * diffB;
+      }
+    }
+
+    if (defr > 0) {
+      const magentaFringe = Math.max(0, (origR + origB) / 2 - origG);
+      if (magentaFringe > 15) {
+        origR -= magentaFringe * defr * 0.8;
+        origB -= magentaFringe * defr * 0.8;
       }
     }
 
@@ -494,15 +657,11 @@ export function processPixels(
       const lVal = 0.299 * r + 0.587 * g + 0.114 * b;
       const cVal = (lVal / 255 - 0.5) * 1.6 + 0.5;
       const finalVal = Math.max(0, Math.min(255, Math.round(cVal * 255))) * 0.95;
-      r = finalVal;
-      g = finalVal;
-      b = finalVal;
+      r = finalVal; g = finalVal; b = finalVal;
     } else if (preset === 'matte') {
       let lVal = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
       lVal = (lVal - 0.5) * 0.75 + 0.5;
-      if (lVal < 0.2) {
-        lVal = lVal * 0.5 + 0.05;
-      }
+      if (lVal < 0.2) lVal = lVal * 0.5 + 0.05;
       r = r * 0.3 + lVal * 255 * 0.7;
       g = g * 0.3 + lVal * 255 * 0.7;
       b = b * 0.3 + lVal * 255 * 0.7;
@@ -510,6 +669,27 @@ export function processPixels(
       r = Math.min(255, Math.max(0, (r - 127) * 1.3 + 127 + 15));
       g = Math.min(255, Math.max(0, (g - 127) * 1.3 + 127));
       b = Math.min(255, Math.max(0, (b - 127) * 1.3 + 127 - 15));
+    } else if (preset === 'cine') {
+      r = Math.min(255, Math.max(0, (r - 127) * 1.25 + 127 + 10));
+      g = Math.min(255, Math.max(0, (g - 127) * 1.15 + 127));
+      b = Math.min(255, Math.max(0, (b - 127) * 1.1 + 127 - 10));
+    } else if (preset === 'vintage') {
+      r = r * 0.85 + 40;
+      g = g * 0.8 + 30;
+      b = b * 0.7 + 15;
+    } else if (preset === 'cyberpunk') {
+      const cvL = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = cvL * 0.8 + 60;
+      g = cvL * 0.5;
+      b = cvL * 0.9 + 50;
+    } else if (preset === 'forest') {
+      r = r * 0.6;
+      g = g * 1.1;
+      b = b * 0.8;
+    } else if (preset === 'warmgold') {
+      r = r * 1.1 + 20;
+      g = g * 1.05 + 10;
+      b = b * 0.9;
     }
     
     if (expFactor !== 1) {
@@ -531,6 +711,17 @@ export function processPixels(
       b = lVal + (b - lVal) * sat;
       lVal = 0.299 * r + 0.587 * g + 0.114 * b;
     }
+
+    if (vib !== 0) {
+      const maxVal = Math.max(r, g, b) / 255;
+      const minVal = Math.min(r, g, b) / 255;
+      const amt = (maxVal - minVal) * (1.0 - maxVal);
+      const factor = vib * amt * 3.0;
+      r = r + (r - lVal) * factor;
+      g = g + (g - lVal) * factor;
+      b = b + (b - lVal) * factor;
+      lVal = 0.299 * r + 0.587 * g + 0.114 * b;
+    }
     
     const normL = lVal / 255;
     if (high !== 0) {
@@ -544,6 +735,30 @@ export function processPixels(
       r += r * shad * 0.5 * wS;
       g += g * shad * 0.5 * wS;
       b += b * shad * 0.5 * wS;
+    }
+
+    if (white !== 0) {
+      const wWeight = Math.pow(Math.max(0, normL), 2);
+      r += white * 40 * wWeight;
+      g += white * 40 * wWeight;
+      b += white * 40 * wWeight;
+    }
+    if (black !== 0) {
+      const bWeight = Math.pow(Math.max(0, 1 - normL), 2);
+      r += black * 40 * bWeight;
+      g += black * 40 * bWeight;
+      b += black * 40 * bWeight;
+    }
+
+    if (gam !== 1.0) {
+      r = Math.pow(Math.max(0, r) / 255, 1.0 / gam) * 255;
+      g = Math.pow(Math.max(0, g) / 255, 1.0 / gam) * 255;
+      b = Math.pow(Math.max(0, b) / 255, 1.0 / gam) * 255;
+    }
+    if (fd > 0) {
+      r = fd * 30 + r * (1 - fd * 0.2);
+      g = fd * 30 + g * (1 - fd * 0.2);
+      b = fd * 30 + b * (1 - fd * 0.2);
     }
     
     r = lutRGB[Math.max(0, Math.min(255, Math.round(r)))];
@@ -647,6 +862,71 @@ export function processPixels(
     r += wS * tintSR + wM * tintMR + wH * tintHR;
     g += wS * tintSG + wM * tintMG + wH * tintHG;
     b += wS * tintSB + wM * tintMB + wH * tintHB;
+
+    if (duoM > 0) {
+      const normL2 = Math.max(0, Math.min(1, (0.299 * r + 0.587 * g + 0.114 * b) / 255));
+      const [sr, sg, sb] = hslToRgb(duoSH, duoSS, 0.2);
+      const [hr, hg, hb] = hslToRgb(duoHH, duoHS, 0.8);
+      const dr = sr * (1 - normL2) + hr * normL2;
+      const dg = sg * (1 - normL2) + hg * normL2;
+      const db = sb * (1 - normL2) + hb * normL2;
+      r = r * (1 - duoM) + dr * duoM;
+      g = g * (1 - duoM) + dg * duoM;
+      b = b * (1 - duoM) + db * duoM;
+    }
+
+    if (sep > 0) {
+      const sr = (r * 0.393 + g * 0.769 + b * 0.189);
+      const sg = (r * 0.349 + g * 0.686 + b * 0.168);
+      const sb = (r * 0.272 + g * 0.534 + b * 0.131);
+      r = r * (1 - sep) + sr * sep;
+      g = g * (1 - sep) + sg * sep;
+      b = b * (1 - sep) + sb * sep;
+    }
+
+    if (sol > 0) {
+      const curL = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (curL > sol * 255) {
+        r = 255 - r;
+        g = 255 - g;
+        b = 255 - b;
+      }
+    }
+
+    if (post > 0 && post < 256) {
+      const steps = Math.max(2, Math.round(post));
+      r = Math.round(r / 255 * steps) / steps * 255;
+      g = Math.round(g / 255 * steps) / steps * 255;
+      b = Math.round(b / 255 * steps) / steps * 255;
+    }
+
+    if (therm > 0) {
+      const curL = 0.299 * r + 0.587 * g + 0.114 * b;
+      const nl = curL / 255;
+      let tr = 0, tg = 0, tb = 0;
+      if (nl < 0.33) {
+        tb = (nl / 0.33) * 255;
+      } else if (nl < 0.66) {
+        tb = 255 - ((nl - 0.33) / 0.33) * 255;
+        tr = ((nl - 0.33) / 0.33) * 255;
+      } else {
+        tr = 255;
+        tg = ((nl - 0.66) / 0.34) * 255;
+        tb = tg;
+      }
+      r = r * (1 - therm) + tr * therm;
+      g = g * (1 - therm) + tg * therm;
+      b = b * (1 - therm) + tb * therm;
+    }
+
+    if (cp > 0) {
+      const cr = r > 128 ? r + (255 - r) * 0.2 : r * 0.8;
+      const cg = g > 128 ? g + (255 - g) * 0.1 : g * 0.9;
+      const cb = b > 128 ? b * 0.7 : b + (255 - b) * 0.3;
+      r = r * (1 - cp) + cr * cp;
+      g = g * (1 - cp) + cg * cp;
+      b = b * (1 - cp) + cb * cp;
+    }
     
     if (bloomBuffer) {
       const br = bloomBuffer[i];
@@ -671,23 +951,68 @@ export function processPixels(
         b += bb * adjustments.bloomIntensity;
       }
     }
+
+    if (halationBuffer) {
+      r += halationBuffer[i] * halIntensity * 1.2;
+      g += halationBuffer[i + 1] * halIntensity * 0.3;
+      b += halationBuffer[i + 2] * halIntensity * 0.1;
+    }
+
+    if (mistBuffer) {
+      r = r * (1 - mist * 0.25) + mistBuffer[i] * mist * 0.25;
+      g = g * (1 - mist * 0.25) + mistBuffer[i + 1] * mist * 0.25;
+      b = b * (1 - mist * 0.25) + mistBuffer[i + 2] * mist * 0.25;
+    }
     
     if (vigInt > 0) {
       const dx = (xCo - w / 2) / (w / 2);
-      const dy = (yCo - h / 2) / (h / 2);
+      const dy = ((yCo - h / 2) / (h / 2)) / (0.3 + vigRound * 0.7);
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const vignetteFactor = 1 - vigInt * Math.min(1, Math.pow(dist, 2));
-      r *= vignetteFactor;
-      g *= vignetteFactor;
-      b *= vignetteFactor;
+      
+      const innerLimit = 0.4 * (1 - vigFeath);
+      const outerLimit = 1.2;
+      let factor = 1;
+      if (dist > innerLimit) {
+        const t = Math.min(1, (dist - innerLimit) / (outerLimit - innerLimit));
+        factor = 1 - t * vigInt;
+      }
+      r *= factor;
+      g *= factor;
+      b *= factor;
     }
     
     if (grainInt > 0) {
-      const pseudoRand = Math.sin(Math.floor(xCo / grainSz) * 12.9898 + Math.floor(yCo / grainSz) * 78.233) * 43758.5453;
-      const noise = ((pseudoRand - Math.floor(pseudoRand)) - 0.5) * grainInt * 255;
-      r += noise;
-      g += noise;
-      b += noise;
+      const pR = Math.sin(Math.floor(xCo / grainSz) * 12.9898 + Math.floor(yCo / grainSz) * 78.233) * 43758.5453;
+      const noiseR = ((pR - Math.floor(pR)) - 0.5) * grainInt * 255;
+      
+      const pG = Math.sin(Math.floor(xCo / grainSz) * 15.2341 + Math.floor(yCo / grainSz) * 43.193) * 31849.2841;
+      const noiseG = ((pG - Math.floor(pG)) - 0.5) * grainInt * 255;
+      
+      const pB = Math.sin(Math.floor(xCo / grainSz) * 9.1837 + Math.floor(yCo / grainSz) * 112.87) * 58913.3982;
+      const noiseB = ((pB - Math.floor(pB)) - 0.5) * grainInt * 255;
+      
+      r += noiseR;
+      g += noiseR * (1 - grChroma) + noiseG * grChroma;
+      b += noiseR * (1 - grChroma) + noiseB * grChroma;
+    }
+
+    if (leakInt > 0) {
+      const leakPos = (w - xCo) / w;
+      const leakWeight = Math.pow(leakPos, 2.5) * leakInt * 0.6;
+      if (leakWeight > 0) {
+        const [lr, lg, lb] = hslToRgb(leakHue, 1.0, 0.5);
+        r = r * (1 - leakWeight) + lr * leakWeight;
+        g = g * (1 - leakWeight) + lg * leakWeight;
+        b = b * (1 - leakWeight) + lb * leakWeight;
+      }
+    }
+
+    if (bWidth > 0) {
+      const bSize = Math.round(Math.min(w, h) * bWidth);
+      if (xCo < bSize || xCo >= w - bSize || yCo < bSize || yCo >= h - bSize) {
+        const [br, bg, bb] = hslToRgb(bHue, 0.8, 0.9);
+        r = br; g = bg; b = bb;
+      }
     }
     
     r = Math.max(0, Math.min(255, Math.round(r)));

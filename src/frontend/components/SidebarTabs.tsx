@@ -1,7 +1,6 @@
 import React from 'react';
-import { Palette, Sliders, TrendingUp, Layers, Crop } from 'lucide-react';
 
-type TabType = 'presets' | 'adjustments' | 'curves' | 'masks' | 'crop';
+export type TabType = 'presets' | 'basic' | 'hsl' | 'grading' | 'curves' | 'detail' | 'effects' | 'stylize' | 'lens' | 'masks' | 'geometry';
 
 interface SidebarTabsProps {
   activeTab: TabType;
@@ -15,11 +14,17 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   uiCollapsed,
 }) => {
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
-    { id: 'presets', label: 'Presets', icon: <Palette size={15} /> },
-    { id: 'adjustments', label: 'Adjust', icon: <Sliders size={15} /> },
-    { id: 'curves', label: 'Curves', icon: <TrendingUp size={15} /> },
-    { id: 'masks', label: 'Masks', icon: <Layers size={15} /> },
-    { id: 'crop', label: 'Crop', icon: <Crop size={15} /> },
+    { id: 'presets', label: 'Presets', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>palette</span> },
+    { id: 'basic', label: 'Basic', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>tune</span> },
+    { id: 'hsl', label: 'Mixer', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>instant_mix</span> },
+    { id: 'grading', label: 'Grading', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>explore</span> },
+    { id: 'curves', label: 'Curves', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>show_chart</span> },
+    { id: 'detail', label: 'Detail', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>bolt</span> },
+    { id: 'effects', label: 'Effects', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span> },
+    { id: 'stylize', label: 'Stylize', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>magic_button</span> },
+    { id: 'lens', label: 'Lens', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>photo_camera</span> },
+    { id: 'masks', label: 'Masks', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>layers</span> },
+    { id: 'geometry', label: 'Geometry', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>crop</span> },
   ];
 
   return (
@@ -38,3 +43,4 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     </div>
   );
 };
+export default SidebarTabs;

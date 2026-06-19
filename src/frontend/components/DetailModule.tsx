@@ -14,10 +14,14 @@ export const DetailModule: React.FC<DetailModuleProps> = ({
   onMouseUp,
 }) => {
   const sliders = [
+    { key: 'texture' as keyof AdjustmentState, label: 'Texture', min: -1, max: 1, step: 0.01 },
     { key: 'clarity' as keyof AdjustmentState, label: 'Clarity', min: -1, max: 1, step: 0.01 },
     { key: 'dehaze' as keyof AdjustmentState, label: 'Dehaze', min: -1, max: 1, step: 0.01 },
     { key: 'sharpening' as keyof AdjustmentState, label: 'Sharpening', min: 0, max: 1.5, step: 0.01 },
+    { key: 'sharpeningRadius' as keyof AdjustmentState, label: 'Sharpening Radius', min: 0.5, max: 3, step: 0.1 },
     { key: 'denoise' as keyof AdjustmentState, label: 'Noise Reduction', min: 0, max: 1, step: 0.01 },
+    { key: 'denoiseDetail' as keyof AdjustmentState, label: 'Denoise Detail', min: 0, max: 1, step: 0.01 },
+    { key: 'defringe' as keyof AdjustmentState, label: 'Defringe', min: 0, max: 1, step: 0.01 },
   ];
 
   return (
