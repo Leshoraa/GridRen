@@ -11,17 +11,30 @@ const isServerless = typeof process !== "undefined" && process.env.VERCEL === "1
 
 const app = new Elysia()
   .use(cors())
-  .get("/styles.css", () => new Response(Bun.file("public/styles.css"), {
-    headers: { "Content-Type": "text/css;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
-  }))
-  .get("/bundle.js", () => new Response(Bun.file("public/bundle.js"), {
-    headers: { "Content-Type": "application/javascript;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
-  }))
-  .use(staticPlugin({
-    assets: "public",
-    prefix: "",
-    headers: { "Cache-Control": NO_CACHE }
-  }))
+  // Rute styles.css aman dari ENOENT
+  .get("/styles.css", () => {
+    if (isServerless) return new Response("Styles handled by Vercel CDN", { status: 200 });
+    return new Response(Bun.file("public/styles.css"), {
+      headers: { "Content-Type": "text/css;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+    });
+  })
+  // Rute bundle.js aman dari ENOENT
+  .get("/bundle.js", () => {
+    if (isServerless) return new Response("Bundle handled by Vercel CDN", { status: 200 });
+    return new Response(Bun.file("public/bundle.js"), {
+      headers: { "Content-Type": "application/javascript;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+    });
+  })
+  // Hanya gunakan staticPlugin di lokal komputer
+  .use(
+    isServerless 
+      ? (x) => x 
+      : staticPlugin({
+          assets: "public",
+          prefix: "",
+          headers: { "Cache-Control": NO_CACHE }
+        })
+  )
   .use(
     swagger({
       path: "/swagger",
@@ -35,9 +48,15 @@ const app = new Elysia()
   )
   .use(errorHandlingMiddleware)
   .use(apiRouter)
-  .get("/", () => new Response(Bun.file("public/index.html"), {
-    headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
-  }));
+  // Rute utama / aman dari ENOENT
+  .get("/", () => {
+    if (isServerless) {
+      return new Response("GridRen Backend API Active", { status: 200 });
+    }
+    return new Response(Bun.file("public/index.html"), {
+      headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": NO_CACHE, "Pragma": "no-cache" }
+    });
+  });
 
 if (!isServerless && typeof Bun !== "undefined" && import.meta.main) {
   app.listen(configuration.port);
