@@ -46,6 +46,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [previewSize, setPreviewSize] = useState({ w: 0, h: 0 });
   const [origPixels, setOrigPixels] = useState<Uint8ClampedArray | null>(null);
@@ -370,13 +371,19 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   const aspectRatio = previewSize.w && previewSize.h ? previewSize.w / previewSize.h : 1;
   const aspectRatioStr = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : 'auto';
 
+  useEffect(() => {
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.style.setProperty('--aspect', String(aspectRatio));
+    }
+  }, [aspectRatio]);
+
   return (
     <div className="workspace-panel" ref={containerRef}>
       <div 
+        ref={canvasContainerRef}
         className="canvas-container" 
         style={{ 
           aspectRatio: aspectRatioStr,
-          ['--aspect' as any]: aspectRatio,
           transform: `scale(${(zoom / 100) * (uiCollapsed ? 1.05 : 1.0)})`
         }}
       >
