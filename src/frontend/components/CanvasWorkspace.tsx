@@ -28,6 +28,8 @@ interface CanvasWorkspaceProps {
   uiCollapsed: boolean;
   zoom: number;
   setZoom: (zoom: number | ((prev: number) => number)) => void;
+  pan: { x: number; y: number };
+  setPan: (pan: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
 }
 
 export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
@@ -46,6 +48,8 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   showOverlay,
   uiCollapsed,
   zoom,
+  pan,
+  setPan,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -56,6 +60,56 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
+  const [panOffsetStart, setPanOffsetStart] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        const active = document.activeElement;
+        const isInput = active && (
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.getAttribute('contenteditable') === 'true'
+        );
+        if (!isInput) {
+          e.preventDefault();
+          setIsSpacePressed(true);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsSpacePressed(false);
+      setIsPanning(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  const getCursorStyle = () => {
+    if (isPanning) return 'grabbing';
+    if (isSpacePressed) return 'grab';
+    if (!activeMask) return 'grab';
+    return 'crosshair';
+  };
 
   const activeMask = masks.find(m => m.id === activeMaskId);
 
@@ -103,7 +157,22 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!imageElement || !activeMask) return;
+    if (!imageElement) return;
+
+    const isMiddleButton = e.button === 1;
+    const shouldPan = isSpacePressed || isMiddleButton || !activeMask;
+
+    if (shouldPan) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      setPanOffsetStart({ ...pan });
+      if (isMiddleButton) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (!activeMask) return;
     const coords = getCanvasMouseCoords(e);
 
     if (activeMask.type === 'brush') {
@@ -117,7 +186,19 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!imageElement || !activeMask || !isDrawing) return;
+    if (!imageElement) return;
+
+    if (isPanning && panStart && panOffsetStart) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      setPan({
+        x: panOffsetStart.x + dx,
+        y: panOffsetStart.y + dy,
+      });
+      return;
+    }
+
+    if (!activeMask || !isDrawing) return;
     const coords = getCanvasMouseCoords(e);
 
     if (activeMask.type === 'brush') {
@@ -129,6 +210,13 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   };
 
   const handleMouseUp = () => {
+    if (isPanning) {
+      setIsPanning(false);
+      setPanStart(null);
+      setPanOffsetStart(null);
+      return;
+    }
+
     if (!isDrawing || !activeMask) return;
     setIsDrawing(false);
     setDragStart(null);
@@ -386,7 +474,8 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
         className={`canvas-container${uiCollapsed ? ' collapsed' : ''}`}
         style={{ 
           aspectRatio: aspectRatioStr,
-          transform: `scale(${zoom / 100})`
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100})`,
+          transition: isPanning ? 'none' : undefined
         }}
       >
         <canvas
@@ -394,6 +483,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
           width={previewSize.w}
           height={previewSize.h}
           className="editor-canvas"
+          style={{ cursor: getCursorStyle() }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

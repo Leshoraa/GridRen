@@ -63,6 +63,7 @@ export const App: React.FC = () => {
   const [uiCollapsed, setUiCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'presets' | 'adjustments' | 'curves' | 'masks'>('presets');
   const [zoom, setZoom] = useState(100);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
 
   const [historyStack, setHistoryStack] = useState<HistoryState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -162,6 +163,8 @@ export const App: React.FC = () => {
     };
     setHistoryStack([initialState]);
     setHistoryIndex(0);
+    setZoom(100);
+    setPan({ x: 0, y: 0 });
     showToast('Workspace initialized');
   };
 
@@ -359,6 +362,8 @@ export const App: React.FC = () => {
         setUiCollapsed={setUiCollapsed}
         zoom={zoom}
         setZoom={setZoom}
+        pan={pan}
+        onResetPan={() => setPan({ x: 0, y: 0 })}
       />
 
       <main className={`main-layout ${!imageElement ? 'no-image' : ''} ${uiCollapsed ? 'collapsed-ui' : ''}`}>
@@ -380,6 +385,8 @@ export const App: React.FC = () => {
             uiCollapsed={uiCollapsed}
             zoom={zoom}
             setZoom={setZoom}
+            pan={pan}
+            setPan={setPan}
           />
 
           {imageElement && (

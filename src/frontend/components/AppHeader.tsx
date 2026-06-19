@@ -15,6 +15,8 @@ interface AppHeaderProps {
   setUiCollapsed: (collapsed: boolean) => void;
   zoom: number;
   setZoom: (zoom: number | ((prev: number) => number)) => void;
+  pan: { x: number; y: number };
+  onResetPan: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -31,6 +33,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   setUiCollapsed,
   zoom,
   setZoom,
+  pan,
+  onResetPan,
 }) => {
   return (
     <header className="app-header">
@@ -62,6 +66,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <span className="zoom-value">{zoom}%</span>
               <button className="zoom-btn" onClick={() => setZoom(prev => Math.min(200, prev + 10))}>+</button>
               <button className="zoom-btn" onClick={() => setZoom(100)}>Fit</button>
+              {(pan.x !== 0 || pan.y !== 0) && (
+                <button className="zoom-btn" onClick={onResetPan} style={{ color: 'var(--accent-red)' }}>Reset Position</button>
+              )}
             </div>
             <button className="btn" onClick={handleUndo} disabled={historyIndex <= 0}>Undo</button>
             <button className="btn" onClick={handleRedo} disabled={historyIndex >= historyStackLength - 1}>Redo</button>

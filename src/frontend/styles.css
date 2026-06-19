@@ -639,6 +639,17 @@ body {
   position: relative;
   z-index: 1;
   gap: 12px;
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+  will-change: transform, opacity;
+}
+
+.main-layout.collapsed-ui .sidebar-tabs {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .tab-btn {
@@ -729,3 +740,5 @@ body {
   border-left: 1px solid var(--border-color);
   border-right: 1px solid var(--border-color);
 }
+
+

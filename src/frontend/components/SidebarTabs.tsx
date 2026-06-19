@@ -12,8 +12,6 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   setActiveTab,
   uiCollapsed,
 }) => {
-  if (uiCollapsed) return null;
-
   return (
     <div className="sidebar-tabs">
       <button
