@@ -367,14 +367,16 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     );
   }
 
-  const aspectRatio = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : 'auto';
+  const aspectRatio = previewSize.w && previewSize.h ? previewSize.w / previewSize.h : 1;
+  const aspectRatioStr = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : 'auto';
 
   return (
     <div className="workspace-panel" ref={containerRef}>
       <div 
         className="canvas-container" 
         style={{ 
-          aspectRatio,
+          aspectRatio: aspectRatioStr,
+          ['--aspect' as any]: aspectRatio,
           transform: `scale(${(zoom / 100) * (uiCollapsed ? 1.05 : 1.0)})`
         }}
       >

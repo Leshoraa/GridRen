@@ -17723,7 +17723,8 @@ var CanvasWorkspace = ({
       ]
     }, undefined, true, undefined, this);
   }
-  const aspectRatio = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : "auto";
+  const aspectRatio = previewSize.w && previewSize.h ? previewSize.w / previewSize.h : 1;
+  const aspectRatioStr = previewSize.w && previewSize.h ? `${previewSize.w} / ${previewSize.h}` : "auto";
   return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
     className: "workspace-panel",
     ref: containerRef,
@@ -17731,7 +17732,8 @@ var CanvasWorkspace = ({
       /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
         className: "canvas-container",
         style: {
-          aspectRatio,
+          aspectRatio: aspectRatioStr,
+          ["--aspect"]: aspectRatio,
           transform: `scale(${zoom / 100 * (uiCollapsed ? 1.05 : 1)})`
         },
         children: /* @__PURE__ */ jsx_dev_runtime.jsxDEV("canvas", {

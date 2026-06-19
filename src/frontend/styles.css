@@ -165,34 +165,27 @@ body {
   padding: var(--grid-gap);
   background-color: var(--bg-primary);
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   z-index: 2;
 }
 
 .canvas-container {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), max-width 0.4s cubic-bezier(0.25, 1, 0.5, 1), max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: center center;
+  max-width: min(70vw, calc(65vh * var(--aspect, 1.5)));
   width: 100%;
-  height: auto;
-  max-width: 70vw;
-  max-height: 65vh;
 }
 
 .main-layout.collapsed-ui .canvas-container {
-  transform: scale(1.05);
-  max-width: 85vw;
-  max-height: 75vh;
+  max-width: min(85vw, calc(75vh * var(--aspect, 1.5)));
 }
 
 .editor-canvas {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
 
 .gridren-app.theme-light .editor-canvas {
@@ -686,41 +679,49 @@ body {
 
 .zoom-controls-floating {
   position: absolute;
-  bottom: 24px;
-  right: 24px;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
-  padding: 6px 12px;
-  border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   z-index: 100;
 }
 
 .zoom-btn {
   background: none;
   border: none;
-  color: var(--text-primary);
+  color: var(--text-muted);
   cursor: pointer;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 5px;
+  transition: all 0.15s ease;
+  line-height: 1;
 }
 
 .zoom-btn:hover {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .zoom-value {
-  font-family: var(--font-sans);
+  font-family: monospace;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 700;
   color: var(--text-primary);
-  min-width: 36px;
+  min-width: 40px;
   text-align: center;
+  padding: 5px 4px;
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
 }
