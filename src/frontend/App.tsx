@@ -38,6 +38,7 @@ interface HistoryState {
 export const App: React.FC = () => {
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
   const [imageMeta, setImageMeta] = useState({ name: '', size: '', dim: '' });
+  const [showConfirmBack, setShowConfirmBack] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('gridren-theme');
     return saved === 'dark' ? 'dark' : 'light';
@@ -338,17 +339,20 @@ export const App: React.FC = () => {
   };
 
   const handleBackToStart = () => {
-    if (window.confirm("Are you sure you want to leave?")) {
-      setImageElement(null);
-      setImageMeta({ name: '', size: '', dim: '' });
-      setGlobalAdjustments(initialAdjustments());
-      setGlobalCurves(initialCurves());
-      setGlobalPreset('none');
-      setMasks([]);
-      setActiveMaskId(null);
-      setHistoryStack([]);
-      setHistoryIndex(-1);
-    }
+    setShowConfirmBack(true);
+  };
+
+  const executeBackToStart = () => {
+    setShowConfirmBack(false);
+    setImageElement(null);
+    setImageMeta({ name: '', size: '', dim: '' });
+    setGlobalAdjustments(initialAdjustments());
+    setGlobalCurves(initialCurves());
+    setGlobalPreset('none');
+    setMasks([]);
+    setActiveMaskId(null);
+    setHistoryStack([]);
+    setHistoryIndex(-1);
   };
 
   const handleTabClick = (tab: 'presets' | 'adjustments' | 'curves' | 'masks') => {
@@ -473,6 +477,19 @@ export const App: React.FC = () => {
       </main>
 
       {toastMessage && <div className="toast">{toastMessage}</div>}
+
+      {showConfirmBack && (
+        <div className="confirm-modal-overlay" onClick={() => setShowConfirmBack(false)}>
+          <div className="confirm-modal-box" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-modal-title">Confirm Navigation</h3>
+            <p className="confirm-modal-text">Are you sure you want to leave? Your unsaved changes will be lost.</p>
+            <div className="confirm-modal-actions">
+              <button className="btn" onClick={() => setShowConfirmBack(false)}>Cancel</button>
+              <button className="btn btn-accent" onClick={executeBackToStart}>Leave Workspace</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
