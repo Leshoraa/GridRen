@@ -84,7 +84,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
   align-items: center;
   justify-content: center;
   padding: 6px;
-  border-radius: 4px;
+  border-radius: 0;
   transition: all 0.15s ease;
 }
 
@@ -102,7 +102,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
   align-items: center;
   justify-content: center;
   padding: 6px;
-  border-radius: 4px;
+  border-radius: 0;
   transition: all 0.15s ease;
 }
 
@@ -767,7 +767,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
 
 .sidebar-content::-webkit-scrollbar-thumb {
   background: var(--border-color-active);
-  border-radius: 3px;
+  border-radius: 0;
 }
 
 .sidebar-content::-webkit-scrollbar-thumb:hover {
@@ -903,7 +903,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
   gap: 2px;
   border: 1px solid var(--border-color);
   padding: 2px;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .zoom-btn {
@@ -917,7 +917,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   padding: 4px 8px;
-  border-radius: 3px;
+  border-radius: 0;
   transition: all 0.15s ease;
   line-height: 1;
 }
@@ -1038,7 +1038,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
   align-items: center;
   gap: 5px;
   padding: 4px 8px;
-  border-radius: 3px;
+  border-radius: 0;
   transition: all 0.15s ease;
 }
 
@@ -1215,7 +1215,7 @@ input, textarea, [contenteditable="true"], .selectable-text {
 }
 
 .transform-btn {
-  background-color: var(--border-color);
+  background-color: transparent;
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   font-size: 10px;
@@ -1229,12 +1229,13 @@ input, textarea, [contenteditable="true"], .selectable-text {
   padding: 10px;
   cursor: pointer;
   transition: all 0.15s ease;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .transform-btn:hover {
-  background-color: var(--border-color-active);
-  border-color: var(--border-color-active);
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
 }
 
 .transform-btn-active {
