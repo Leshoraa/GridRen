@@ -172,13 +172,15 @@ body {
 .canvas-container {
   position: relative;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: center center;
   max-width: min(70vw, calc(65vh * var(--aspect, 1.5)));
   width: 100%;
+  transition: max-width 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+              transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
 }
 
-.main-layout.collapsed-ui .canvas-container {
+.canvas-container.collapsed {
   max-width: min(85vw, calc(75vh * var(--aspect, 1.5)));
 }
 

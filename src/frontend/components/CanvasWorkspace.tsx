@@ -381,10 +381,10 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     <div className="workspace-panel" ref={containerRef}>
       <div 
         ref={canvasContainerRef}
-        className="canvas-container" 
+        className={`canvas-container${uiCollapsed ? ' collapsed' : ''}`}
         style={{ 
           aspectRatio: aspectRatioStr,
-          transform: `scale(${(zoom / 100) * (uiCollapsed ? 1.05 : 1.0)})`
+          transform: `scale(${zoom / 100})`
         }}
       >
         <canvas
