@@ -337,6 +337,20 @@ export const App: React.FC = () => {
     }, 100);
   };
 
+  const handleBackToStart = () => {
+    if (window.confirm("Are you sure you want to leave?")) {
+      setImageElement(null);
+      setImageMeta({ name: '', size: '', dim: '' });
+      setGlobalAdjustments(initialAdjustments());
+      setGlobalCurves(initialCurves());
+      setGlobalPreset('none');
+      setMasks([]);
+      setActiveMaskId(null);
+      setHistoryStack([]);
+      setHistoryIndex(-1);
+    }
+  };
+
   const handleTabClick = (tab: 'presets' | 'adjustments' | 'curves' | 'masks') => {
     if (activeTab === tab) {
       setUiCollapsed(!uiCollapsed);
@@ -364,6 +378,7 @@ export const App: React.FC = () => {
         setZoom={setZoom}
         pan={pan}
         onResetPan={() => setPan({ x: 0, y: 0 })}
+        onBack={handleBackToStart}
       />
 
       <main className={`main-layout ${!imageElement ? 'no-image' : ''} ${uiCollapsed ? 'collapsed-ui' : ''}`}>

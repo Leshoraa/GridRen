@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, ChevronLeft } from 'lucide-react';
 
 interface AppHeaderProps {
   theme: 'light' | 'dark';
@@ -17,6 +17,7 @@ interface AppHeaderProps {
   setZoom: (zoom: number | ((prev: number) => number)) => void;
   pan: { x: number; y: number };
   onResetPan: () => void;
+  onBack?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -35,10 +36,20 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   setZoom,
   pan,
   onResetPan,
+  onBack,
 }) => {
   return (
     <header className="app-header">
       <div className="title-container">
+        {imageElement && onBack && (
+          <button
+            className="back-btn"
+            onClick={onBack}
+            title="Back to start screen"
+          >
+            <ChevronLeft size={18} />
+          </button>
+        )}
         <div className="app-title">GridRen</div>
         <button
           className="theme-toggle-btn"
