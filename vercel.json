@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/swagger/:path*",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/swagger",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/bundle.js",
+      "destination": "/public/bundle.js"
+    },
+    {
+      "source": "/styles.css",
+      "destination": "/public/styles.css"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/$1"
+    }
+  ]
+}

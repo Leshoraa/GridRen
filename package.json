@@ -4,7 +4,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
-    "build:frontend": "cp src/frontend/styles.css public/styles.css && bun build src/frontend/index.tsx --outfile public/bundle.js --target=browser --format=iife --minify --define:process.env.NODE_ENV='\"production\"' && touch src/index.ts"
+    "build:frontend": "cp src/frontend/styles.css public/styles.css && bun build src/frontend/index.tsx --outfile public/bundle.js --target=browser --format=iife --minify --define:process.env.NODE_ENV='\"production\"' && touch src/index.ts",
+    "build": "bun run build:frontend"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
