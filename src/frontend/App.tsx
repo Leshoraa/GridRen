@@ -12,8 +12,9 @@ import { TransformModule } from './components/TransformModule';
 import { SidebarTabs, TabType } from './components/SidebarTabs';
 import { CreativeEffectsModule } from './components/CreativeEffectsModule';
 import { LensModule } from './components/LensModule';
+import { EraserModule } from './components/EraserModule';
 
-import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels } from './utils/imageProcess';
+import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels, applyInpaint } from './utils/imageProcess';
 
 const initialAdjustments = (): AdjustmentState => ({
   exposure: 0,
@@ -366,11 +367,25 @@ export const App: React.FC = () => {
   const [historyStack, setHistoryStack] = useState<HistoryState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+  const historyIndexRef = useRef(historyIndex);
+  const historyStackRef = useRef(historyStack);
+
+  useEffect(() => {
+    historyIndexRef.current = historyIndex;
+  }, [historyIndex]);
+
+  useEffect(() => {
+    historyStackRef.current = historyStack;
+  }, [historyStack]);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [previewW, setPreviewW] = useState(0);
   const [previewH, setPreviewH] = useState(0);
 
   const [origPixels, setOrigPixels] = useState<Uint8ClampedArray | null>(null);
+  const [eraserBuffer, setEraserBuffer] = useState<Uint8ClampedArray | null>(null);
+  const [hasEraserPixels, setHasEraserPixels] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [splitRatio, setSplitRatio] = useState<number | null>(null);
 
@@ -391,7 +406,7 @@ export const App: React.FC = () => {
     nextW = previewW,
     nextH = previewH
   ) => {
-    const newStack = historyStack.slice(0, historyIndex + 1);
+    const newStack = historyStackRef.current.slice(0, historyIndexRef.current + 1);
     const state: HistoryState = {
       globalAdjustments: { ...nextAdj },
       globalCurves: JSON.parse(JSON.stringify(nextCrv)),
@@ -407,7 +422,8 @@ export const App: React.FC = () => {
       previewW: nextW,
       previewH: nextH,
     };
-    setHistoryStack([...newStack, state]);
+    const updatedStack = [...newStack, state];
+    setHistoryStack(updatedStack);
     setHistoryIndex(newStack.length);
   };
 
@@ -443,17 +459,36 @@ export const App: React.FC = () => {
       curves: JSON.parse(JSON.stringify(m.curves)),
     })));
     if (state.origPixels && state.origPixels.length > 0) {
-      setOrigPixels(new Uint8ClampedArray(state.origPixels));
+      const copy = new Uint8ClampedArray(state.origPixels);
+      setOrigPixels(copy);
+      canvasRef.current?.setOrigPixels(copy, state.previewW, state.previewH);
     }
     setPreviewW(state.previewW);
     setPreviewH(state.previewH);
   };
 
-  const handleImageLoad = (img: HTMLImageElement, w: number, h: number) => {
+  const handleImageLoad = (img: HTMLImageElement, w: number, h: number, pixels?: Uint8ClampedArray) => {
     const isNewImage = !imageElement;
     setImageElement(img);
     setPreviewW(w);
     setPreviewH(h);
+    setEraserBuffer(new Uint8ClampedArray(w * h));
+    setHasEraserPixels(false);
+    if (pixels) {
+      const copy = new Uint8ClampedArray(pixels);
+      setOrigPixels(copy);
+      setHistoryStack(prev => {
+        if (prev.length === 1 && prev[0].origPixels.length === 0) {
+          return [{
+            ...prev[0],
+            origPixels: copy,
+            previewW: w,
+            previewH: h
+          }];
+        }
+        return prev;
+      });
+    }
 
     if (isNewImage) {
       setImageMeta({
@@ -474,7 +509,7 @@ export const App: React.FC = () => {
         globalPreset: 'none',
         masks: [],
         activeMaskId: null,
-        origPixels: new Uint8ClampedArray(0),
+        origPixels: pixels ? new Uint8ClampedArray(pixels) : new Uint8ClampedArray(0),
         previewW: w,
         previewH: h,
       };
@@ -493,6 +528,42 @@ export const App: React.FC = () => {
     }
   };
 
+
+  const handleClearEraserMask = () => {
+    if (eraserBuffer) {
+      eraserBuffer.fill(0);
+      setEraserBuffer(new Uint8ClampedArray(eraserBuffer));
+      setHasEraserPixels(false);
+      showToast('Eraser selection cleared');
+    }
+  };
+
+  const handleApplyErase = () => {
+    const orig = canvasRef.current?.getOrigPixels();
+    if (!orig || !eraserBuffer || !previewW || !previewH) return;
+    if (!hasEraserPixels) {
+      showToast('Please paint on the image first');
+      return;
+    }
+    setIsProcessing(true);
+    setTimeout(() => {
+      try {
+        const nextPixels = applyInpaint(orig, previewW, previewH, eraserBuffer);
+        canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
+        setOrigPixels(nextPixels);
+        eraserBuffer.fill(0);
+        setEraserBuffer(new Uint8ClampedArray(eraserBuffer));
+        pushHistory(globalAdjustments, globalCurves, globalPreset, masks, activeMaskId, nextPixels, previewW, previewH);
+        setHasEraserPixels(false);
+        showToast('Object erased successfully');
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to erase object');
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 50);
+  };
 
   const addMask = (type: 'brush' | 'radial' | 'linear') => {
     if (!previewW || !previewH) return;
@@ -611,7 +682,19 @@ export const App: React.FC = () => {
       const exportCtx = exportCanvas.getContext('2d');
       if (!exportCtx) return;
 
-      exportCtx.drawImage(imageElement, 0, 0, w, h);
+      const tempPrevCanvas = document.createElement('canvas');
+      tempPrevCanvas.width = previewW;
+      tempPrevCanvas.height = previewH;
+      const tempPrevCtx = tempPrevCanvas.getContext('2d');
+      if (tempPrevCtx && origPixels) {
+        const tempImgData = tempPrevCtx.createImageData(previewW, previewH);
+        tempImgData.data.set(origPixels);
+        tempPrevCtx.putImageData(tempImgData, 0, 0);
+        exportCtx.drawImage(tempPrevCanvas, 0, 0, w, h);
+      } else {
+        exportCtx.drawImage(imageElement, 0, 0, w, h);
+      }
+
       const imgData = exportCtx.getImageData(0, 0, w, h);
       let pixels = imgData.data;
 
@@ -904,8 +987,10 @@ export const App: React.FC = () => {
             cropMode={cropMode}
             cropAspectRatio={cropAspectRatio}
             customRatioW={customRatioW}
-            customRatioH={customRatioH}
             isComparing={isComparing}
+            isEraserMode={activeTab === 'eraser'}
+            eraserBuffer={eraserBuffer}
+            onEraserMaskUpdate={setHasEraserPixels}
           />
 
           {imageElement && (
@@ -1024,6 +1109,22 @@ export const App: React.FC = () => {
                 />
               )}
 
+              {activeTab === 'eraser' && (
+                <EraserModule
+                  brushSize={brushSize}
+                  setBrushSize={setBrushSize}
+                  brushFeather={brushFeather}
+                  setBrushFeather={setBrushFeather}
+                  brushOpacity={brushOpacity}
+                  setBrushOpacity={setBrushOpacity}
+                  brushMode={brushMode}
+                  setBrushMode={setBrushMode}
+                  onClearMask={handleClearEraserMask}
+                  onApplyErase={handleApplyErase}
+                  hasMaskPixels={hasEraserPixels}
+                />
+              )}
+
               {activeTab === 'geometry' && (
                 <TransformModule
                   onRotateCW={rotateCW}
@@ -1051,6 +1152,15 @@ export const App: React.FC = () => {
       </main>
 
       {toastMessage && <div className="toast">{toastMessage}</div>}
+
+      {isProcessing && (
+        <div className="processing-overlay">
+          <div className="processing-box">
+            <div className="processing-spinner" />
+            <span className="processing-text">Removing Object...</span>
+          </div>
+        </div>
+      )}
 
       {showConfirmBack && (
         <div className="confirm-modal-overlay" onClick={() => setShowConfirmBack(false)}>

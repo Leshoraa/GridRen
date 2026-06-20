@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type TabType = 'presets' | 'basic' | 'hsl' | 'curves' | 'detail' | 'effects' | 'lens' | 'masks' | 'geometry';
+export type TabType = 'presets' | 'basic' | 'hsl' | 'curves' | 'detail' | 'effects' | 'lens' | 'masks' | 'geometry' | 'eraser';
 
 interface SidebarTabsProps {
   activeTab: TabType;
@@ -22,6 +22,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     { id: 'effects', label: 'Effects', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span> },
     { id: 'lens', label: 'Lens', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>photo_camera</span> },
     { id: 'masks', label: 'Masks', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>layers</span> },
+    { id: 'eraser', label: 'Eraser', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>cleaning_services</span> },
     { id: 'geometry', label: 'Transform', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>crop</span> },
   ];
 

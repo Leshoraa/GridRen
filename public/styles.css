@@ -846,6 +846,13 @@ input, textarea, [contenteditable="true"], .selectable-text {
   height: 100%;
   gap: 0;
   flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 
@@ -859,14 +866,14 @@ input, textarea, [contenteditable="true"], .selectable-text {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
+  padding: 0 16px;
   gap: 6px;
   transition: background 0.15s ease, color 0.15s ease;
   height: 100%;
   border-radius: 0;
   user-select: none;
   -webkit-user-select: none;
-  flex: 1;
+  flex: 1 0 auto;
 }
 
 .tab-btn:first-child {
@@ -1514,4 +1521,55 @@ input, textarea, [contenteditable="true"], .selectable-text {
 
 .accordion-content.expanded .accordion-inner {
   padding-bottom: 12px;
+}
+
+/* Processing Overlay UI */
+.processing-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.processing-box {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: 32px 48px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: scaleUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.processing-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-red);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.processing-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

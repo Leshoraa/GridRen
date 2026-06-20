@@ -1035,3 +1035,93 @@ export function processPixels(
   
   return dest;
 }
+
+export function applyInpaint(
+  pixels: Uint8ClampedArray,
+  w: number,
+  h: number,
+  mask: Uint8ClampedArray
+): Uint8ClampedArray {
+  const result = new Uint8ClampedArray(pixels);
+  const maxIterations = 32;
+  const currentMask = new Uint8Array(w * h);
+  for (let i = 0; i < mask.length; i++) {
+    currentMask[i] = mask[i] > 128 ? 1 : 0;
+  }
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let changed = false;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        if (currentMask[idx] === 0) continue;
+        let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+        let count = 0;
+        const neighbors = [
+          { x: x - 1, y },
+          { x: x + 1, y },
+          { x, y: y - 1 },
+          { x, y: y + 1 }
+        ];
+        for (const n of neighbors) {
+          if (n.x >= 0 && n.x < w && n.y >= 0 && n.y < h) {
+            const nIdx = n.y * w + n.x;
+            if (currentMask[nIdx] === 0) {
+              const pIdx = nIdx * 4;
+              rSum += result[pIdx];
+              gSum += result[pIdx + 1];
+              bSum += result[pIdx + 2];
+              aSum += result[pIdx + 3];
+              count++;
+            }
+          }
+        }
+        if (count > 0) {
+          const pIdx = idx * 4;
+          result[pIdx] = Math.round(rSum / count);
+          result[pIdx + 1] = Math.round(gSum / count);
+          result[pIdx + 2] = Math.round(bSum / count);
+          result[pIdx + 3] = Math.round(aSum / count);
+          currentMask[idx] = 0;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  for (let pass = 0; pass < 5; pass++) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        if (currentMask[idx] === 0) continue;
+        let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+        let count = 0;
+        const neighbors = [
+          { x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 },
+          { x: x - 1, y: y - 1 }, { x: x + 1, y: y - 1 }, { x: x - 1, y: y + 1 }, { x: x + 1, y: y + 1 }
+        ];
+        for (const n of neighbors) {
+          if (n.x >= 0 && n.x < w && n.y >= 0 && n.y < h) {
+            const nIdx = n.y * w + n.x;
+            if (currentMask[nIdx] === 0) {
+              const pIdx = nIdx * 4;
+              rSum += result[pIdx];
+              gSum += result[pIdx + 1];
+              bSum += result[pIdx + 2];
+              aSum += result[pIdx + 3];
+              count++;
+            }
+          }
+        }
+        if (count > 0) {
+          const pIdx = idx * 4;
+          result[pIdx] = Math.round(rSum / count);
+          result[pIdx + 1] = Math.round(gSum / count);
+          result[pIdx + 2] = Math.round(bSum / count);
+          result[pIdx + 3] = Math.round(aSum / count);
+          currentMask[idx] = 0;
+        }
+      }
+    }
+  }
+  return result;
+}

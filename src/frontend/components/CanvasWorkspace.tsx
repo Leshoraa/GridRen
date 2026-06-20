@@ -32,7 +32,7 @@ interface CanvasWorkspaceProps {
   brushOpacity: number;
   brushMode: 'add' | 'erase';
   onMaskUpdate: (maskId: string, buffer: Uint8ClampedArray) => void;
-  onImageLoad: (img: HTMLImageElement, width: number, height: number) => void;
+  onImageLoad: (img: HTMLImageElement, width: number, height: number, pixels?: Uint8ClampedArray) => void;
   showOverlay: boolean;
   uiCollapsed: boolean;
   zoom: number;
@@ -46,6 +46,9 @@ interface CanvasWorkspaceProps {
   customRatioW: number;
   customRatioH: number;
   isComparing?: boolean;
+  isEraserMode?: boolean;
+  eraserBuffer?: Uint8ClampedArray | null;
+  onEraserMaskUpdate?: (hasPixels: boolean) => void;
 }
 
 
@@ -56,7 +59,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     onMaskUpdate, onImageLoad, showOverlay, uiCollapsed,
     zoom, pan, setPan, splitRatio, setSplitRatio,
     cropMode, cropAspectRatio, customRatioW, customRatioH,
-    isComparing,
+    isComparing, isEraserMode, eraserBuffer, onEraserMaskUpdate,
   } = props;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -104,6 +107,12 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
   useEffect(() => { liveSplitRatioRef.current = splitRatio; }, [splitRatio]);
   const liveIsComparingRef = useRef(false);
   useEffect(() => { liveIsComparingRef.current = isComparing || false; scheduleRender(); }, [isComparing]);
+  const liveIsEraserModeRef = useRef(false);
+  useEffect(() => { liveIsEraserModeRef.current = isEraserMode || false; scheduleRender(); }, [isEraserMode]);
+  const liveEraserBufferRef = useRef<Uint8ClampedArray | null>(null);
+  useEffect(() => { liveEraserBufferRef.current = eraserBuffer || null; scheduleRender(); }, [eraserBuffer]);
+  const cachedProcessedRef = useRef<Uint8ClampedArray | null>(null);
+  const lastProcessedKeyRef = useRef<string>('');
 
   const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
@@ -118,6 +127,8 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     setOrigPixels: (pixels, w, h) => {
       origPixelsRef.current = pixels;
       setPreviewSize({ w, h });
+      cachedProcessedRef.current = null;
+      lastProcessedKeyRef.current = '';
       scheduleRender();
     },
     getCurrentCropRect: () => cropRect,
@@ -414,7 +425,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       tmpCtx.drawImage(imageElement, 0, 0, w, h);
       const data = tmpCtx.getImageData(0, 0, w, h).data;
       origPixelsRef.current = new Uint8ClampedArray(data);
-      onImageLoad(imageElement, w, h);
+      onImageLoad(imageElement, w, h, new Uint8ClampedArray(data));
     }
   }, [imageElement]);
 
@@ -425,7 +436,9 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     showOv: boolean, drawing: boolean,
     splitR: number | null,
     ds: { x: number; y: number } | null,
-    dc: { x: number; y: number } | null
+    dc: { x: number; y: number } | null,
+    isEraserVal: boolean,
+    eraserBufVal: Uint8ClampedArray | null
   ) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -440,6 +453,14 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
         imgData.data[i] = Math.round((1 - mw) * processed[i] + mw * 216);
         imgData.data[i + 1] = Math.round((1 - mw) * processed[i + 1]);
         imgData.data[i + 2] = Math.round((1 - mw) * processed[i + 2]);
+        imgData.data[i + 3] = processed[i + 3];
+      }
+    } else if (isEraserVal && eraserBufVal) {
+      for (let i = 0; i < processed.length; i += 4) {
+        const ew = eraserBufVal[i / 4] / 255 * 0.55;
+        imgData.data[i] = Math.round((1 - ew) * processed[i] + ew * 255);
+        imgData.data[i + 1] = Math.round((1 - ew) * processed[i + 1] + ew * 110);
+        imgData.data[i + 2] = Math.round((1 - ew) * processed[i + 2]);
         imgData.data[i + 3] = processed[i + 3];
       }
     } else {
@@ -512,9 +533,22 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     const drawing = isDrawingRef.current;
     const ds = dragStartRef.current;
     const dc = dragCurrentRef.current;
+    const isEraser = liveIsEraserModeRef.current;
+    const eraserBuf = liveEraserBufferRef.current;
 
     const isComp = liveIsComparingRef.current;
-    const result = isComp ? orig : await renderFullPipeline(orig, ps.w, ps.h, adj, crv, pre, msk, amid);
+    let result = null;
+    const cacheKey = `${pre}_${JSON.stringify(adj)}_${JSON.stringify(crv)}_${msk.map(m => m.id + "_" + m.visible).join(',')}_${amid}`;
+    
+    if (isEraser && cachedProcessedRef.current && lastProcessedKeyRef.current === cacheKey) {
+      result = cachedProcessedRef.current;
+    } else {
+      result = isComp ? orig : await renderFullPipeline(orig, ps.w, ps.h, adj, crv, pre, msk, amid);
+      if (result && !isComp) {
+        cachedProcessedRef.current = result;
+        lastProcessedKeyRef.current = cacheKey;
+      }
+    }
 
     isRenderingRef.current = false;
 
@@ -533,7 +567,9 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       isComp ? false : drawing,
       isComp ? null : splitR,
       isComp ? null : ds,
-      isComp ? null : dc
+      isComp ? null : dc,
+      isComp ? false : isEraser,
+      isComp ? null : eraserBuf
     );
 
     if (pendingRenderRef.current) scheduleRender();
@@ -585,14 +621,41 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     }
   }, [activeMask, previewSize, brushSize, brushFeather, brushOpacity, brushMode]);
 
+  const applyEraserBrushStroke = useCallback((cx: number, cy: number) => {
+    if (!eraserBuffer || !previewSize.w || !previewSize.h) return;
+    const radius = brushSize;
+    const hardness = 1 - brushFeather;
+    const opacity = brushOpacity;
+    const isErase = brushMode === 'erase';
+    const minX = Math.max(0, Math.floor(cx - radius));
+    const maxX = Math.min(previewSize.w - 1, Math.ceil(cx + radius));
+    const minY = Math.max(0, Math.floor(cy - radius));
+    const maxY = Math.min(previewSize.h - 1, Math.ceil(cy + radius));
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const dist = Math.hypot(x - cx, y - cy);
+        if (dist <= radius) {
+          let factor = dist > radius * hardness ? 1 - (dist - radius * hardness) / (radius * (1 - hardness)) : 1;
+          const delta = factor * opacity * 255;
+          const idx = y * previewSize.w + x;
+          eraserBuffer[idx] = isErase ? Math.max(0, eraserBuffer[idx] - delta) : Math.min(255, eraserBuffer[idx] + delta);
+        }
+      }
+    }
+  }, [eraserBuffer, previewSize, brushSize, brushFeather, brushOpacity, brushMode]);
+
   const flushBrushRaf = useCallback(() => {
     brushRafRef.current = null;
     const coords = pendingBrushCoordsRef.current;
     if (!coords) return;
     pendingBrushCoordsRef.current = null;
-    applyBrushStroke(coords.x, coords.y);
+    if (liveIsEraserModeRef.current) {
+      applyEraserBrushStroke(coords.x, coords.y);
+    } else {
+      applyBrushStroke(coords.x, coords.y);
+    }
     scheduleRender();
-  }, [applyBrushStroke, scheduleRender]);
+  }, [applyBrushStroke, applyEraserBrushStroke, scheduleRender]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!imageElement) return;
@@ -605,7 +668,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       }
     }
 
-    const shouldPan = isSpacePressed || e.button === 1 || !activeMask;
+    const shouldPan = isSpacePressed || e.button === 1 || (!activeMask && !liveIsEraserModeRef.current);
     if (shouldPan) {
       setIsPanning(true);
       panStartRef.current = { x: e.clientX, y: e.clientY };
@@ -614,15 +677,20 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       return;
     }
 
-    if (!activeMask) return;
+    if (!activeMask && !liveIsEraserModeRef.current) return;
     const coords = getCanvasMouseCoords(e);
 
-    if (activeMask.type === 'brush') {
+    if (liveIsEraserModeRef.current) {
+      setIsDrawing(true);
+      isDrawingRef.current = true;
+      applyEraserBrushStroke(coords.x, coords.y);
+      scheduleRender();
+    } else if (activeMask && activeMask.type === 'brush') {
       setIsDrawing(true);
       isDrawingRef.current = true;
       applyBrushStroke(coords.x, coords.y);
       scheduleRender();
-    } else if (activeMask.type === 'radial' || activeMask.type === 'linear') {
+    } else if (activeMask && (activeMask.type === 'radial' || activeMask.type === 'linear')) {
       dragStartRef.current = coords;
       dragCurrentRef.current = coords;
       setDragStart(coords);
@@ -649,15 +717,20 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       return;
     }
 
-    if (!activeMask || !isDrawing) return;
+    if ((!activeMask && !liveIsEraserModeRef.current) || !isDrawing) return;
     const coords = getCanvasMouseCoords(e);
 
-    if (activeMask.type === 'brush') {
+    if (liveIsEraserModeRef.current) {
       pendingBrushCoordsRef.current = coords;
       if (!brushRafRef.current) {
         brushRafRef.current = requestAnimationFrame(flushBrushRaf);
       }
-    } else if ((activeMask.type === 'radial' || activeMask.type === 'linear') && dragStartRef.current) {
+    } else if (activeMask && activeMask.type === 'brush') {
+      pendingBrushCoordsRef.current = coords;
+      if (!brushRafRef.current) {
+        brushRafRef.current = requestAnimationFrame(flushBrushRaf);
+      }
+    } else if (activeMask && (activeMask.type === 'radial' || activeMask.type === 'linear') && dragStartRef.current) {
       dragCurrentRef.current = coords;
       setDragCurrent(coords);
 
@@ -690,7 +763,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       panOffsetStartRef.current = null;
       return;
     }
-    if (!isDrawing || !activeMask) return;
+    if (!isDrawing) return;
     setIsDrawing(false);
     isDrawingRef.current = false;
     setDragStart(null);
@@ -698,7 +771,19 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     dragStartRef.current = null;
     dragCurrentRef.current = null;
     if (brushRafRef.current) { cancelAnimationFrame(brushRafRef.current); brushRafRef.current = null; }
-    onMaskUpdate(activeMask.id, new Uint8ClampedArray(activeMask.buffer));
+    if (activeMask) {
+      onMaskUpdate(activeMask.id, new Uint8ClampedArray(activeMask.buffer));
+    }
+    if (liveIsEraserModeRef.current && eraserBuffer) {
+      let hasPixels = false;
+      for (let i = 0; i < eraserBuffer.length; i++) {
+        if (eraserBuffer[i] > 128) {
+          hasPixels = true;
+          break;
+        }
+      }
+      onEraserMaskUpdate?.(hasPixels);
+    }
     scheduleRender();
   };
 
