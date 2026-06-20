@@ -17,6 +17,8 @@ interface AppHeaderProps {
   pan: { x: number; y: number };
   onResetPan: () => void;
   onBack?: () => void;
+  isComparing: boolean;
+  setIsComparing: (comparing: boolean) => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -36,6 +38,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   pan,
   onResetPan,
   onBack,
+  isComparing,
+  setIsComparing,
 }) => {
   return (
     <header className="app-header">
@@ -75,6 +79,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="app-controls-top">
         {imageElement && (
           <>
+            <button
+              className={`btn compare-btn ${isComparing ? 'btn-accent' : ''}`}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                setIsComparing(true);
+              }}
+              onPointerUp={() => setIsComparing(false)}
+              onPointerLeave={() => setIsComparing(false)}
+              style={{ marginRight: '8px', cursor: 'pointer', userSelect: 'none' }}
+            >
+              Compare
+            </button>
             <div className="zoom-controls-header">
               <button className="zoom-btn" onClick={() => setZoom(prev => Math.max(25, prev - 10))}>-</button>
               <span className="zoom-value">{zoom}%</span>

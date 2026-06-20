@@ -356,6 +356,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('presets');
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isComparing, setIsComparing] = useState(false);
 
   const [cropMode, setCropMode] = useState(false);
   const [cropAspectRatio, setCropAspectRatio] = useState<string>('free');
@@ -872,6 +873,8 @@ export const App: React.FC = () => {
         pan={pan}
         onResetPan={() => setPan({ x: 0, y: 0 })}
         onBack={handleBackToStart}
+        isComparing={isComparing}
+        setIsComparing={setIsComparing}
       />
 
       <main className={`main-layout ${!imageElement ? 'no-image' : ''} ${uiCollapsed ? 'collapsed-ui' : ''}`}>
@@ -902,6 +905,7 @@ export const App: React.FC = () => {
             cropAspectRatio={cropAspectRatio}
             customRatioW={customRatioW}
             customRatioH={customRatioH}
+            isComparing={isComparing}
           />
 
           {imageElement && (

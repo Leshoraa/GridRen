@@ -45,6 +45,7 @@ interface CanvasWorkspaceProps {
   cropAspectRatio: string;
   customRatioW: number;
   customRatioH: number;
+  isComparing?: boolean;
 }
 
 
@@ -55,6 +56,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     onMaskUpdate, onImageLoad, showOverlay, uiCollapsed,
     zoom, pan, setPan, splitRatio, setSplitRatio,
     cropMode, cropAspectRatio, customRatioW, customRatioH,
+    isComparing,
   } = props;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -100,6 +102,8 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
   useEffect(() => { liveActiveMaskIdRef.current = activeMaskId; }, [activeMaskId]);
   useEffect(() => { liveShowOverlayRef.current = showOverlay; }, [showOverlay]);
   useEffect(() => { liveSplitRatioRef.current = splitRatio; }, [splitRatio]);
+  const liveIsComparingRef = useRef(false);
+  useEffect(() => { liveIsComparingRef.current = isComparing || false; scheduleRender(); }, [isComparing]);
 
   const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
@@ -509,7 +513,8 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     const ds = dragStartRef.current;
     const dc = dragCurrentRef.current;
 
-    const result = await renderFullPipeline(orig, ps.w, ps.h, adj, crv, pre, msk, amid);
+    const isComp = liveIsComparingRef.current;
+    const result = isComp ? orig : await renderFullPipeline(orig, ps.w, ps.h, adj, crv, pre, msk, amid);
 
     isRenderingRef.current = false;
 
@@ -519,7 +524,17 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     }
 
     const curActiveMask = msk.find(m => m.id === amid);
-    paintToCanvas(result, ps.w, ps.h, curActiveMask, showOv, drawing, splitR, ds, dc);
+    paintToCanvas(
+      result,
+      ps.w,
+      ps.h,
+      isComp ? undefined : curActiveMask,
+      isComp ? false : showOv,
+      isComp ? false : drawing,
+      isComp ? null : splitR,
+      isComp ? null : ds,
+      isComp ? null : dc
+    );
 
     if (pendingRenderRef.current) scheduleRender();
   }, [previewSize, paintToCanvas]);
@@ -534,7 +549,7 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
 
   useEffect(() => {
     scheduleRender();
-  }, [adjustments, curves, preset, masks, activeMaskId, showOverlay, splitRatio, previewSize]);
+  }, [adjustments, curves, preset, masks, activeMaskId, showOverlay, splitRatio, previewSize, isComparing]);
 
   const getCanvasMouseCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
