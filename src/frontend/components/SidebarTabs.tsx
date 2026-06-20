@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type TabType = 'presets' | 'basic' | 'hsl' | 'curves' | 'detail' | 'effects' | 'stylize' | 'lens' | 'masks' | 'geometry';
+export type TabType = 'presets' | 'basic' | 'hsl' | 'curves' | 'detail' | 'effects' | 'lens' | 'masks' | 'geometry';
 
 interface SidebarTabsProps {
   activeTab: TabType;
@@ -20,10 +20,9 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
     { id: 'curves', label: 'Curves', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>show_chart</span> },
     { id: 'detail', label: 'Detail', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>bolt</span> },
     { id: 'effects', label: 'Effects', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span> },
-    { id: 'stylize', label: 'Stylize', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>magic_button</span> },
     { id: 'lens', label: 'Lens', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>photo_camera</span> },
     { id: 'masks', label: 'Masks', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>layers</span> },
-    { id: 'geometry', label: 'Geometry', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>crop</span> },
+    { id: 'geometry', label: 'Transform', icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>crop</span> },
   ];
 
   return (

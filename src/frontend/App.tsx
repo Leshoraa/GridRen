@@ -11,7 +11,6 @@ import { MasksModule } from './components/MasksModule';
 import { TransformModule } from './components/TransformModule';
 import { SidebarTabs, TabType } from './components/SidebarTabs';
 import { CreativeEffectsModule } from './components/CreativeEffectsModule';
-import { StylizeModule } from './components/StylizeModule';
 import { LensModule } from './components/LensModule';
 
 import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels } from './utils/imageProcess';
@@ -976,13 +975,6 @@ export const App: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'stylize' && (
-                <StylizeModule
-                  adjustments={activeMask ? activeMask.adjustments : globalAdjustments}
-                  onChange={handleAdjustmentChange}
-                  onMouseUp={commitAdjustmentHistory}
-                />
-              )}
 
               {activeTab === 'lens' && (
                 <LensModule

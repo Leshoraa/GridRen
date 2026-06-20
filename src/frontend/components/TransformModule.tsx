@@ -67,7 +67,7 @@ export const TransformModule: React.FC<TransformModuleProps> = ({
 
   return (
     <div className="control-module active-module">
-      <div className="module-title-clean">Transform & Geometry</div>
+      <div className="module-title-clean">Transform</div>
 
       <div className="transform-section-label">Rotate</div>
       <div className="transform-grid" style={{ marginBottom: '20px' }}>
