@@ -1036,92 +1036,76 @@ export function processPixels(
   return dest;
 }
 
+export function applyInpaintClassic(
+  originalImageCanvas: HTMLCanvasElement,
+  maskCanvas: HTMLCanvasElement,
+  outputCanvas: HTMLCanvasElement,
+  inpaintRadius: number = 5
+): void {
+  const cv = (window as any).cv;
+  if (!cv) {
+    throw new Error("OpenCV.js is not loaded");
+  }
+  const src = cv.imread(originalImageCanvas);
+  const srcRGB = new cv.Mat();
+  cv.cvtColor(src, srcRGB, cv.COLOR_RGBA2RGB);
+  const maskMat = cv.imread(maskCanvas);
+  const mask = new cv.Mat();
+  cv.cvtColor(maskMat, mask, cv.COLOR_RGBA2GRAY);
+  const dst = new cv.Mat();
+  cv.inpaint(srcRGB, mask, dst, inpaintRadius, cv.INPAINT_TELEA);
+  cv.imshow(outputCanvas, dst);
+  src.delete();
+  srcRGB.delete();
+  maskMat.delete();
+  mask.delete();
+  dst.delete();
+}
+
 export function applyInpaint(
   pixels: Uint8ClampedArray,
   w: number,
   h: number,
   mask: Uint8ClampedArray
 ): Uint8ClampedArray {
-  const result = new Uint8ClampedArray(pixels);
-  const maxIterations = 32;
-  const currentMask = new Uint8Array(w * h);
+  const imgCanvas = document.createElement("canvas");
+  imgCanvas.width = w;
+  imgCanvas.height = h;
+  const imgCtx = imgCanvas.getContext("2d");
+  if (!imgCtx) {
+    throw new Error("Failed to create canvas context");
+  }
+  const imgData = imgCtx.createImageData(w, h);
+  imgData.data.set(pixels);
+  imgCtx.putImageData(imgData, 0, 0);
+
+  const maskCanvas = document.createElement("canvas");
+  maskCanvas.width = w;
+  maskCanvas.height = h;
+  const maskCtx = maskCanvas.getContext("2d");
+  if (!maskCtx) {
+    throw new Error("Failed to create mask canvas context");
+  }
+  const maskImgData = maskCtx.createImageData(w, h);
   for (let i = 0; i < mask.length; i++) {
-    currentMask[i] = mask[i] > 128 ? 1 : 0;
+    const val = mask[i];
+    const idx = i * 4;
+    maskImgData.data[idx] = val;
+    maskImgData.data[idx + 1] = val;
+    maskImgData.data[idx + 2] = val;
+    maskImgData.data[idx + 3] = 255;
   }
-  for (let iter = 0; iter < maxIterations; iter++) {
-    let changed = false;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const idx = y * w + x;
-        if (currentMask[idx] === 0) continue;
-        let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
-        let count = 0;
-        const neighbors = [
-          { x: x - 1, y },
-          { x: x + 1, y },
-          { x, y: y - 1 },
-          { x, y: y + 1 }
-        ];
-        for (const n of neighbors) {
-          if (n.x >= 0 && n.x < w && n.y >= 0 && n.y < h) {
-            const nIdx = n.y * w + n.x;
-            if (currentMask[nIdx] === 0) {
-              const pIdx = nIdx * 4;
-              rSum += result[pIdx];
-              gSum += result[pIdx + 1];
-              bSum += result[pIdx + 2];
-              aSum += result[pIdx + 3];
-              count++;
-            }
-          }
-        }
-        if (count > 0) {
-          const pIdx = idx * 4;
-          result[pIdx] = Math.round(rSum / count);
-          result[pIdx + 1] = Math.round(gSum / count);
-          result[pIdx + 2] = Math.round(bSum / count);
-          result[pIdx + 3] = Math.round(aSum / count);
-          currentMask[idx] = 0;
-          changed = true;
-        }
-      }
-    }
-    if (!changed) break;
+  maskCtx.putImageData(maskImgData, 0, 0);
+
+  const outCanvas = document.createElement("canvas");
+  outCanvas.width = w;
+  outCanvas.height = h;
+
+  applyInpaintClassic(imgCanvas, maskCanvas, outCanvas, 5);
+
+  const outCtx = outCanvas.getContext("2d");
+  if (!outCtx) {
+    throw new Error("Failed to create output canvas context");
   }
-  for (let pass = 0; pass < 5; pass++) {
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const idx = y * w + x;
-        if (currentMask[idx] === 0) continue;
-        let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
-        let count = 0;
-        const neighbors = [
-          { x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 },
-          { x: x - 1, y: y - 1 }, { x: x + 1, y: y - 1 }, { x: x - 1, y: y + 1 }, { x: x + 1, y: y + 1 }
-        ];
-        for (const n of neighbors) {
-          if (n.x >= 0 && n.x < w && n.y >= 0 && n.y < h) {
-            const nIdx = n.y * w + n.x;
-            if (currentMask[nIdx] === 0) {
-              const pIdx = nIdx * 4;
-              rSum += result[pIdx];
-              gSum += result[pIdx + 1];
-              bSum += result[pIdx + 2];
-              aSum += result[pIdx + 3];
-              count++;
-            }
-          }
-        }
-        if (count > 0) {
-          const pIdx = idx * 4;
-          result[pIdx] = Math.round(rSum / count);
-          result[pIdx + 1] = Math.round(gSum / count);
-          result[pIdx + 2] = Math.round(bSum / count);
-          result[pIdx + 3] = Math.round(aSum / count);
-          currentMask[idx] = 0;
-        }
-      }
-    }
-  }
-  return result;
+  return outCtx.getImageData(0, 0, w, h).data;
 }

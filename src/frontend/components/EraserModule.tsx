@@ -13,6 +13,7 @@ interface EraserModuleProps {
   onClearMask: () => void;
   onApplyErase: () => void;
   hasMaskPixels: boolean;
+  isCvReady?: boolean;
 }
 
 export const EraserModule: React.FC<EraserModuleProps> = ({
@@ -27,6 +28,7 @@ export const EraserModule: React.FC<EraserModuleProps> = ({
   onClearMask,
   onApplyErase,
   hasMaskPixels,
+  isCvReady = false,
 }) => {
   return (
     <div className="control-module active-module">
@@ -85,10 +87,10 @@ export const EraserModule: React.FC<EraserModuleProps> = ({
             <button
               className="btn btn-accent"
               onClick={onApplyErase}
-              disabled={!hasMaskPixels}
+              disabled={!hasMaskPixels || !isCvReady}
               style={{ width: '100%', fontWeight: 'bold' }}
             >
-              Erase Object
+              {isCvReady ? 'Erase Object' : 'Loading OpenCV...'}
             </button>
             <button
               className="btn"

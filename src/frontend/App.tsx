@@ -337,6 +337,29 @@ export const App: React.FC = () => {
     localStorage.setItem('gridren-theme', theme);
   }, [theme]);
 
+  const [isCvReady, setIsCvReady] = useState(false);
+
+  useEffect(() => {
+    if (document.getElementById('opencv-script')) {
+      if ((window as any).cv && (window as any).cv.Mat) {
+        setIsCvReady(true);
+      }
+      return;
+    }
+    (window as any).Module = {
+      onRuntimeInitialized: () => {
+        setIsCvReady(true);
+      }
+    };
+    (window as any).cv = (window as any).cv || {};
+    (window as any).cv.onRuntimeInitialized = (window as any).Module.onRuntimeInitialized;
+    const script = document.createElement('script');
+    script.id = 'opencv-script';
+    script.src = 'https://docs.opencv.org/4.5.4/opencv.js';
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
   const [globalAdjustments, setGlobalAdjustments] = useState<AdjustmentState>(initialAdjustments());
   const [globalCurves, setGlobalCurves] = useState<CurvesState>(initialCurves());
   const [globalPreset, setGlobalPreset] = useState<PresetType>('none');
@@ -543,6 +566,10 @@ export const App: React.FC = () => {
     if (!orig || !eraserBuffer || !previewW || !previewH) return;
     if (!hasEraserPixels) {
       showToast('Please paint on the image first');
+      return;
+    }
+    if (!isCvReady) {
+      showToast('OpenCV.js is loading, please wait...');
       return;
     }
     setIsProcessing(true);
@@ -1122,6 +1149,7 @@ export const App: React.FC = () => {
                   onClearMask={handleClearEraserMask}
                   onApplyErase={handleApplyErase}
                   hasMaskPixels={hasEraserPixels}
+                  isCvReady={isCvReady}
                 />
               )}
 
