@@ -17,6 +17,7 @@ export interface CanvasWorkspaceHandle {
   getOrigPixels: () => Uint8ClampedArray | null;
   setOrigPixels: (pixels: Uint8ClampedArray, w: number, h: number) => void;
   getCurrentCropRect: () => { x: number; y: number; w: number; h: number } | null;
+  maximizeCropRect: () => void;
 }
 
 interface CanvasWorkspaceProps {
@@ -116,7 +117,48 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
       scheduleRender();
     },
     getCurrentCropRect: () => cropRect,
-  }), [cropRect]);
+    maximizeCropRect: () => {
+      if (!previewSize.w || !previewSize.h) return;
+      let ratio = 1;
+      let lockRatio = false;
+      if (cropAspectRatio === 'free') {
+        lockRatio = false;
+      } else {
+        lockRatio = true;
+        if (cropAspectRatio === '1:1') ratio = 1;
+        else if (cropAspectRatio === '16:9') ratio = 16 / 9;
+        else if (cropAspectRatio === '4:3') ratio = 4 / 3;
+        else if (cropAspectRatio === '3:2') ratio = 3 / 2;
+        else if (cropAspectRatio === 'custom') {
+          ratio = customRatioW / customRatioH;
+        }
+      }
+
+      const canvasW = previewSize.w;
+      const canvasH = previewSize.h;
+      const canvasRatio = canvasW / canvasH;
+
+      let cropW = canvasW;
+      let cropH = canvasH;
+
+      if (lockRatio) {
+        if (ratio > canvasRatio) {
+          cropW = canvasW;
+          cropH = cropW / ratio;
+        } else {
+          cropH = canvasH;
+          cropW = cropH * ratio;
+        }
+      }
+
+      setCropRect({
+        x: Math.round((canvasW - cropW) / 2),
+        y: Math.round((canvasH - cropH) / 2),
+        w: Math.round(cropW),
+        h: Math.round(cropH),
+      });
+    },
+  }), [cropRect, previewSize, cropAspectRatio, customRatioW, customRatioH]);
 
 
 
@@ -150,15 +192,15 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
 
     if (lockRatio) {
       if (ratio > canvasRatio) {
-        cropW = canvasW * 0.9;
+        cropW = canvasW;
         cropH = cropW / ratio;
       } else {
-        cropH = canvasH * 0.9;
+        cropH = canvasH;
         cropW = cropH * ratio;
       }
     } else {
-      cropW = canvasW * 0.9;
-      cropH = canvasH * 0.9;
+      cropW = canvasW;
+      cropH = canvasH;
     }
 
     const cropX = (canvasW - cropW) / 2;
@@ -176,13 +218,42 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     action: 'move' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br',
     e: React.MouseEvent
   ) => {
+    if (e.button === 1 || isSpacePressed) {
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      panOffsetStartRef.current = { ...pan };
+
+      const handlePanMouseMove = (moveEvent: MouseEvent) => {
+        setPan({
+          x: panOffsetStartRef.current!.x + moveEvent.clientX - panStartRef.current!.x,
+          y: panOffsetStartRef.current!.y + moveEvent.clientY - panStartRef.current!.y,
+        });
+      };
+
+      const handlePanMouseUp = () => {
+        setIsPanning(false);
+        panStartRef.current = null;
+        panOffsetStartRef.current = null;
+        window.removeEventListener('mousemove', handlePanMouseMove);
+        window.removeEventListener('mouseup', handlePanMouseUp);
+      };
+
+      window.addEventListener('mousemove', handlePanMouseMove);
+      window.addEventListener('mouseup', handlePanMouseUp);
+      return;
+    }
+
     e.preventDefault();
     if (!cropRect) return;
 
     const startMouseX = e.clientX;
     const startMouseY = e.clientY;
     const startRect = { ...cropRect };
-    const zoomScale = zoom / 100;
+
+    const canvas = canvasRef.current;
+    const canvasBounds = canvas ? canvas.getBoundingClientRect() : null;
+    const cssToPixelX = canvasBounds ? previewSize.w / canvasBounds.width : 1;
+    const cssToPixelY = canvasBounds ? previewSize.h / canvasBounds.height : 1;
 
     let ratio = 1;
     let lockRatio = false;
@@ -203,8 +274,8 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
     const minH = minW / (lockRatio ? ratio : 1);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const dx = (moveEvent.clientX - startMouseX) / zoomScale;
-      const dy = (moveEvent.clientY - startMouseY) / zoomScale;
+      const dx = (moveEvent.clientX - startMouseX) * cssToPixelX;
+      const dy = (moveEvent.clientY - startMouseY) * cssToPixelY;
 
       const canvasW = previewSize.w;
       const canvasH = previewSize.h;
@@ -219,61 +290,57 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
         newY = Math.max(0, Math.min(canvasH - startRect.h, startRect.y + dy));
       } else if (lockRatio) {
         if (action === 'resize-br') {
-          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
+          const maxW = canvasW - startRect.x;
+          const maxH = canvasH - startRect.y;
+          newW = Math.min(startRect.w + dx, maxW, maxH * ratio);
+          newW = Math.max(minW, newW);
           newH = newW / ratio;
-          if (startRect.y + newH > canvasH) {
-            newH = canvasH - startRect.y;
-            newW = newH * ratio;
-          }
+          newX = startRect.x;
+          newY = startRect.y;
         } else if (action === 'resize-tr') {
-          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
+          const bottomY = startRect.y + startRect.h;
+          newW = Math.min(startRect.w + dx, canvasW - startRect.x, bottomY * ratio);
+          newW = Math.max(minW, newW);
           newH = newW / ratio;
-          newY = startRect.y + startRect.h - newH;
-          if (newY < 0) {
-            newY = 0;
-            newH = startRect.y + startRect.h;
-            newW = newH * ratio;
-          }
+          newY = bottomY - newH;
+          newX = startRect.x;
         } else if (action === 'resize-bl') {
-          const possibleX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
-          newW = startRect.w + (startRect.x - possibleX);
+          const rightX = startRect.x + startRect.w;
+          newW = Math.min(startRect.w - dx, rightX, (canvasH - startRect.y) * ratio);
+          newW = Math.max(minW, newW);
           newH = newW / ratio;
-          newX = startRect.x + startRect.w - newW;
-          if (startRect.y + newH > canvasH) {
-            newH = canvasH - startRect.y;
-            newW = newH * ratio;
-            newX = startRect.x + startRect.w - newW;
-          }
+          newX = rightX - newW;
+          newY = startRect.y;
         } else if (action === 'resize-tl') {
-          const possibleX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
-          newW = startRect.w + (startRect.x - possibleX);
+          const rightX = startRect.x + startRect.w;
+          const bottomY = startRect.y + startRect.h;
+          newW = Math.min(startRect.w - dx, rightX, bottomY * ratio);
+          newW = Math.max(minW, newW);
           newH = newW / ratio;
-          newX = startRect.x + startRect.w - newW;
-          newY = startRect.y + startRect.h - newH;
-          if (newY < 0) {
-            newY = 0;
-            newH = startRect.y + startRect.h;
-            newW = newH * ratio;
-            newX = startRect.x + startRect.w - newW;
-          }
+          newX = rightX - newW;
+          newY = bottomY - newH;
         }
       } else {
         if (action === 'resize-br') {
-          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
-          newH = Math.max(minH, Math.min(canvasH - startRect.y, startRect.h + dy));
+          newW = Math.max(minW, Math.min(startRect.w + dx, canvasW - startRect.x));
+          newH = Math.max(minH, Math.min(startRect.h + dy, canvasH - startRect.y));
+          newX = startRect.x;
+          newY = startRect.y;
         } else if (action === 'resize-tr') {
-          newW = Math.max(minW, Math.min(canvasW - startRect.x, startRect.w + dx));
-          newY = Math.max(0, Math.min(startRect.y + startRect.h - minH, startRect.y + dy));
-          newH = startRect.h + (startRect.y - newY);
+          newW = Math.max(minW, Math.min(startRect.w + dx, canvasW - startRect.x));
+          newH = Math.max(minH, Math.min(startRect.h - dy, startRect.y + startRect.h));
+          newY = startRect.y + startRect.h - newH;
+          newX = startRect.x;
         } else if (action === 'resize-bl') {
-          newX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
-          newW = startRect.w + (startRect.x - newX);
-          newH = Math.max(minH, Math.min(canvasH - startRect.y, startRect.h + dy));
+          newW = Math.max(minW, Math.min(startRect.w - dx, startRect.x + startRect.w));
+          newH = Math.max(minH, Math.min(startRect.h + dy, canvasH - startRect.y));
+          newX = startRect.x + startRect.w - newW;
+          newY = startRect.y;
         } else if (action === 'resize-tl') {
-          newX = Math.max(0, Math.min(startRect.x + startRect.w - minW, startRect.x + dx));
-          newW = startRect.w + (startRect.x - newX);
-          newY = Math.max(0, Math.min(startRect.y + startRect.h - minH, startRect.y + dy));
-          newH = startRect.h + (startRect.y - newY);
+          newW = Math.max(minW, Math.min(startRect.w - dx, startRect.x + startRect.w));
+          newH = Math.max(minH, Math.min(startRect.h - dy, startRect.y + startRect.h));
+          newX = startRect.x + startRect.w - newW;
+          newY = startRect.y + startRect.h - newH;
         }
       }
 
@@ -695,15 +762,18 @@ export const CanvasWorkspace = forwardRef<CanvasWorkspaceHandle, CanvasWorkspace
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         />
-        {cropMode && cropRect && (
-          <div className="crop-overlay">
+        {cropMode && cropRect && previewSize.w > 0 && previewSize.h > 0 && (
+          <div
+            className="crop-overlay"
+            style={{ pointerEvents: (isSpacePressed || isPanning) ? 'none' : 'auto' }}
+          >
             <div
               className="crop-box"
               style={{
-                left: `${cropRect.x}px`,
-                top: `${cropRect.y}px`,
-                width: `${cropRect.w}px`,
-                height: `${cropRect.h}px`,
+                left: `${(cropRect.x / previewSize.w) * 100}%`,
+                top: `${(cropRect.y / previewSize.h) * 100}%`,
+                width: `${(cropRect.w / previewSize.w) * 100}%`,
+                height: `${(cropRect.h / previewSize.h) * 100}%`,
               }}
               onMouseDown={e => handleCropMouseDown('move', e)}
             >

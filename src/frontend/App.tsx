@@ -254,6 +254,76 @@ const cropPixels = (
   return next;
 };
 
+const cropAndScalePixels = (
+  pixels: Uint8ClampedArray,
+  oldW: number,
+  oldH: number,
+  cropRect: { x: number; y: number; w: number; h: number },
+  newW: number,
+  newH: number
+): Uint8ClampedArray => {
+  const canvas1 = document.createElement('canvas');
+  canvas1.width = oldW;
+  canvas1.height = oldH;
+  const ctx1 = canvas1.getContext('2d');
+  if (!ctx1) return new Uint8ClampedArray(newW * newH * 4);
+  const imgData1 = ctx1.createImageData(oldW, oldH);
+  imgData1.data.set(pixels);
+  ctx1.putImageData(imgData1, 0, 0);
+  const canvas2 = document.createElement('canvas');
+  canvas2.width = newW;
+  canvas2.height = newH;
+  const ctx2 = canvas2.getContext('2d');
+  if (!ctx2) return new Uint8ClampedArray(newW * newH * 4);
+  ctx2.drawImage(
+    canvas1,
+    cropRect.x, cropRect.y, cropRect.w, cropRect.h,
+    0, 0, newW, newH
+  );
+  return ctx2.getImageData(0, 0, newW, newH).data;
+};
+
+const cropAndScaleMask = (
+  maskBuffer: Uint8ClampedArray,
+  oldW: number,
+  oldH: number,
+  cropRect: { x: number; y: number; w: number; h: number },
+  newW: number,
+  newH: number
+): Uint8ClampedArray => {
+  const canvas1 = document.createElement('canvas');
+  canvas1.width = oldW;
+  canvas1.height = oldH;
+  const ctx1 = canvas1.getContext('2d');
+  if (!ctx1) return new Uint8ClampedArray(newW * newH);
+  const imgData1 = ctx1.createImageData(oldW, oldH);
+  for (let i = 0; i < maskBuffer.length; i++) {
+    const val = maskBuffer[i];
+    const idx = i * 4;
+    imgData1.data[idx] = val;
+    imgData1.data[idx + 1] = val;
+    imgData1.data[idx + 2] = val;
+    imgData1.data[idx + 3] = 255;
+  }
+  ctx1.putImageData(imgData1, 0, 0);
+  const canvas2 = document.createElement('canvas');
+  canvas2.width = newW;
+  canvas2.height = newH;
+  const ctx2 = canvas2.getContext('2d');
+  if (!ctx2) return new Uint8ClampedArray(newW * newH);
+  ctx2.drawImage(
+    canvas1,
+    cropRect.x, cropRect.y, cropRect.w, cropRect.h,
+    0, 0, newW, newH
+  );
+  const imgData2 = ctx2.getImageData(0, 0, newW, newH);
+  const destBuffer = new Uint8ClampedArray(newW * newH);
+  for (let i = 0; i < destBuffer.length; i++) {
+    destBuffer[i] = imgData2.data[i * 4];
+  }
+  return destBuffer;
+};
+
 export const App: React.FC = () => {
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
   const [imageMeta, setImageMeta] = useState({ name: '', size: '', dim: '' });
@@ -380,40 +450,47 @@ export const App: React.FC = () => {
   };
 
   const handleImageLoad = (img: HTMLImageElement, w: number, h: number) => {
+    const isNewImage = !imageElement;
     setImageElement(img);
     setPreviewW(w);
     setPreviewH(h);
 
-    if (imageMeta.name === '') {
+    if (isNewImage) {
       setImageMeta({
         name: 'IMAGE_WORKSPACE',
         size: `${Math.round((img.src.length * 3) / 4 / 1024)} KB`,
         dim: `${img.naturalWidth} x ${img.naturalHeight}`,
       });
+
+      setMasks([]);
+      setActiveMaskId(null);
+      setGlobalAdjustments(initialAdjustments());
+      setGlobalCurves(initialCurves());
+      setGlobalPreset('none');
+
+      const initialState: HistoryState = {
+        globalAdjustments: initialAdjustments(),
+        globalCurves: initialCurves(),
+        globalPreset: 'none',
+        masks: [],
+        activeMaskId: null,
+        origPixels: new Uint8ClampedArray(0),
+        previewW: w,
+        previewH: h,
+      };
+      setHistoryStack([initialState]);
+      setHistoryIndex(0);
+      pendingAdjRef.current = initialAdjustments();
+      setZoom(100);
+      setPan({ x: 0, y: 0 });
+      showToast('Workspace initialized');
+    } else {
+      setImageMeta(prev => ({
+        ...prev,
+        dim: `${img.naturalWidth} x ${img.naturalHeight}`,
+        size: `${Math.round((img.src.length * 3) / 4 / 1024)} KB`
+      }));
     }
-
-    setMasks([]);
-    setActiveMaskId(null);
-    setGlobalAdjustments(initialAdjustments());
-    setGlobalCurves(initialCurves());
-    setGlobalPreset('none');
-
-    const initialState: HistoryState = {
-      globalAdjustments: initialAdjustments(),
-      globalCurves: initialCurves(),
-      globalPreset: 'none',
-      masks: [],
-      activeMaskId: null,
-      origPixels: new Uint8ClampedArray(0),
-      previewW: w,
-      previewH: h,
-    };
-    setHistoryStack([initialState]);
-    setHistoryIndex(0);
-    pendingAdjRef.current = initialAdjustments();
-    setZoom(100);
-    setPan({ x: 0, y: 0 });
-    showToast('Workspace initialized');
   };
 
 
@@ -607,7 +684,22 @@ export const App: React.FC = () => {
 
   const rotateCW = () => {
     const orig = canvasRef.current?.getOrigPixels();
-    if (!orig || !previewW || !previewH) return;
+    if (!orig || !previewW || !previewH || !imageElement) return;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageElement.naturalHeight;
+    tempCanvas.height = imageElement.naturalWidth;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+      tempCtx.rotate(Math.PI / 2);
+      tempCtx.drawImage(imageElement, -imageElement.naturalWidth / 2, -imageElement.naturalHeight / 2);
+      const rotatedDataUrl = tempCanvas.toDataURL('image/png');
+      const newImg = new Image();
+      newImg.onload = () => {
+        setImageElement(newImg);
+      };
+      newImg.src = rotatedDataUrl;
+    }
     const nextPixels = rotatePixelsCW(orig, previewW, previewH);
     const nextMasks = masks.map(m => ({ ...m, buffer: rotateMaskCW(m.buffer, previewW, previewH) }));
     canvasRef.current?.setOrigPixels(nextPixels, previewH, previewW);
@@ -618,7 +710,22 @@ export const App: React.FC = () => {
 
   const rotateCCW = () => {
     const orig = canvasRef.current?.getOrigPixels();
-    if (!orig || !previewW || !previewH) return;
+    if (!orig || !previewW || !previewH || !imageElement) return;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageElement.naturalHeight;
+    tempCanvas.height = imageElement.naturalWidth;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+      tempCtx.rotate(-Math.PI / 2);
+      tempCtx.drawImage(imageElement, -imageElement.naturalWidth / 2, -imageElement.naturalHeight / 2);
+      const rotatedDataUrl = tempCanvas.toDataURL('image/png');
+      const newImg = new Image();
+      newImg.onload = () => {
+        setImageElement(newImg);
+      };
+      newImg.src = rotatedDataUrl;
+    }
     const nextPixels = rotatePixelsCCW(orig, previewW, previewH);
     const nextMasks = masks.map(m => ({ ...m, buffer: rotateMaskCCW(m.buffer, previewW, previewH) }));
     canvasRef.current?.setOrigPixels(nextPixels, previewH, previewW);
@@ -629,7 +736,22 @@ export const App: React.FC = () => {
 
   const flipH = () => {
     const orig = canvasRef.current?.getOrigPixels();
-    if (!orig || !previewW || !previewH) return;
+    if (!orig || !previewW || !previewH || !imageElement) return;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageElement.naturalWidth;
+    tempCanvas.height = imageElement.naturalHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.translate(tempCanvas.width, 0);
+      tempCtx.scale(-1, 1);
+      tempCtx.drawImage(imageElement, 0, 0);
+      const flippedDataUrl = tempCanvas.toDataURL('image/png');
+      const newImg = new Image();
+      newImg.onload = () => {
+        setImageElement(newImg);
+      };
+      newImg.src = flippedDataUrl;
+    }
     const nextPixels = flipPixelsH(orig, previewW, previewH);
     const nextMasks = masks.map(m => ({ ...m, buffer: flipMaskH(m.buffer, previewW, previewH) }));
     canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
@@ -640,7 +762,22 @@ export const App: React.FC = () => {
 
   const flipV = () => {
     const orig = canvasRef.current?.getOrigPixels();
-    if (!orig || !previewW || !previewH) return;
+    if (!orig || !previewW || !previewH || !imageElement) return;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageElement.naturalWidth;
+    tempCanvas.height = imageElement.naturalHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.translate(0, tempCanvas.height);
+      tempCtx.scale(1, -1);
+      tempCtx.drawImage(imageElement, 0, 0);
+      const flippedDataUrl = tempCanvas.toDataURL('image/png');
+      const newImg = new Image();
+      newImg.onload = () => {
+        setImageElement(newImg);
+      };
+      newImg.src = flippedDataUrl;
+    }
     const nextPixels = flipPixelsV(orig, previewW, previewH);
     const nextMasks = masks.map(m => ({ ...m, buffer: flipMaskV(m.buffer, previewW, previewH) }));
     canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
@@ -653,14 +790,24 @@ export const App: React.FC = () => {
     const cropRect = canvasRef.current?.getCurrentCropRect();
     const orig = canvasRef.current?.getOrigPixels();
     if (!cropRect || !orig || !previewW || !previewH || !imageElement) return;
-
     const scaleX = imageElement.naturalWidth / previewW;
     const scaleY = imageElement.naturalHeight / previewH;
     const naturalX = Math.round(cropRect.x * scaleX);
     const naturalY = Math.round(cropRect.y * scaleY);
     const naturalW = Math.round(cropRect.w * scaleX);
     const naturalH = Math.round(cropRect.h * scaleY);
-
+    const maxDim = 900;
+    let newPreviewW = naturalW;
+    let newPreviewH = naturalH;
+    if (newPreviewW > maxDim || newPreviewH > maxDim) {
+      if (newPreviewW > newPreviewH) {
+        newPreviewH = Math.round((newPreviewH * maxDim) / newPreviewW);
+        newPreviewW = maxDim;
+      } else {
+        newPreviewW = Math.round((newPreviewW * maxDim) / newPreviewH);
+        newPreviewH = maxDim;
+      }
+    }
     const cropCanvas = document.createElement('canvas');
     cropCanvas.width = naturalW;
     cropCanvas.height = naturalH;
@@ -675,38 +822,19 @@ export const App: React.FC = () => {
       const newImg = new Image();
       newImg.onload = () => {
         setImageElement(newImg);
-        setImageMeta(prev => ({
-          ...prev,
-          dim: `${newImg.naturalWidth} x ${newImg.naturalHeight}`,
-          size: `${Math.round((croppedDataUrl.length * 3) / 4 / 1024)} KB`
-        }));
       };
       newImg.src = croppedDataUrl;
     }
-
-    const nextPixels = cropPixels(orig, previewW, previewH, cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-
-    const nextMasks = masks.map(mask => {
-      const newBuf = new Uint8ClampedArray(cropRect.w * cropRect.h);
-      for (let dy = 0; dy < cropRect.h; dy++) {
-        const sy = cropRect.y + dy;
-        const sx = cropRect.x;
-        const sourceOffset = (sy * previewW + sx);
-        const destOffset = dy * cropRect.w;
-        newBuf.set(mask.buffer.subarray(sourceOffset, sourceOffset + cropRect.w), destOffset);
-      }
-      return {
-        ...mask,
-        buffer: newBuf
-      };
-    });
-
-    canvasRef.current?.setOrigPixels(nextPixels, cropRect.w, cropRect.h);
-    setPreviewW(cropRect.w);
-    setPreviewH(cropRect.h);
+    const nextPixels = cropAndScalePixels(orig, previewW, previewH, cropRect, newPreviewW, newPreviewH);
+    const nextMasks = masks.map(mask => ({
+      ...mask,
+      buffer: cropAndScaleMask(mask.buffer, previewW, previewH, cropRect, newPreviewW, newPreviewH)
+    }));
+    canvasRef.current?.setOrigPixels(nextPixels, newPreviewW, newPreviewH);
+    setPreviewW(newPreviewW);
+    setPreviewH(newPreviewH);
     setMasks(nextMasks);
-
-    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, cropRect.w, cropRect.h);
+    pushHistory(globalAdjustments, globalCurves, globalPreset, nextMasks, activeMaskId, nextPixels, newPreviewW, newPreviewH);
     setCropMode(false);
     showToast('Image cropped successfully');
   };
@@ -918,6 +1046,7 @@ export const App: React.FC = () => {
                   setCustomRatioH={setCustomRatioH}
                   onApplyCrop={applyCrop}
                   onCancelCrop={cancelCrop}
+                  onMaximizeCrop={() => canvasRef.current?.maximizeCropRect()}
                 />
               )}
             </div>

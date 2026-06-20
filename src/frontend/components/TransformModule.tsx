@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface TransformModuleProps {
   onRotateCW: () => void;
@@ -17,6 +17,7 @@ interface TransformModuleProps {
   setCustomRatioH: (h: number) => void;
   onApplyCrop: () => void;
   onCancelCrop: () => void;
+  onMaximizeCrop: () => void;
 }
 
 export const TransformModule: React.FC<TransformModuleProps> = ({
@@ -36,7 +37,34 @@ export const TransformModule: React.FC<TransformModuleProps> = ({
   setCustomRatioH,
   onApplyCrop,
   onCancelCrop,
+  onMaximizeCrop,
 }) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const aspectRatios = [
+    { id: 'free', label: 'Freeform', icon: 'crop_free' },
+    { id: '1:1', label: '1:1 Square', icon: 'crop_square' },
+    { id: '16:9', label: '16:9 Cinematic', icon: 'crop_16_9' },
+    { id: '4:3', label: '4:3 Standard', icon: 'crop_7_5' },
+    { id: '3:2', label: '3:2 Classic', icon: 'crop_3_2' },
+    { id: 'custom', label: 'Custom Ratio', icon: 'settings_overscan' },
+  ];
+
+  const currentOption = aspectRatios.find(r => r.id === cropAspectRatio) || aspectRatios[0];
+
   return (
     <div className="control-module active-module">
       <div className="module-title-clean">Transform & Geometry</div>
@@ -79,19 +107,37 @@ export const TransformModule: React.FC<TransformModuleProps> = ({
           </button>
         ) : (
           <div>
-            <div className="geometry-select-wrapper">
-              <select
-                className="geometry-select"
-                value={cropAspectRatio}
-                onChange={e => setCropAspectRatio(e.target.value)}
-              >
-                <option value="free">Freeform</option>
-                <option value="1:1">1:1 Square</option>
-                <option value="16:9">16:9 Cinematic</option>
-                <option value="4:3">4:3 Standard</option>
-                <option value="3:2">3:2 Classic</option>
-                <option value="custom">Custom Ratio</option>
-              </select>
+            <div className="geometry-select-wrapper" ref={dropdownRef}>
+              <div className="custom-dropdown-container">
+                <div
+                  className={`custom-dropdown-trigger ${dropdownOpen ? 'custom-dropdown-trigger-active' : ''}`}
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined custom-dropdown-item-icon">{currentOption.icon}</span>
+                    <span>{currentOption.label}</span>
+                  </div>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>expand_more</span>
+                </div>
+
+                {dropdownOpen && (
+                  <div className="custom-dropdown-menu">
+                    {aspectRatios.map(opt => (
+                      <div
+                        key={opt.id}
+                        className={`custom-dropdown-item ${cropAspectRatio === opt.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setCropAspectRatio(opt.id);
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        <span className="material-symbols-outlined custom-dropdown-item-icon">{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {cropAspectRatio === 'custom' && (
@@ -118,6 +164,16 @@ export const TransformModule: React.FC<TransformModuleProps> = ({
                 </div>
               </div>
             )}
+
+            <button
+              className="transform-btn"
+              onClick={onMaximizeCrop}
+              title="Maximize Crop to Image Bounds"
+              style={{ width: '100%', marginBottom: '10px' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>fullscreen</span>
+              <span>Maximize Selection</span>
+            </button>
 
             <div className="transform-grid">
               <button
