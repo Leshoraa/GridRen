@@ -322,25 +322,20 @@ const cropAndScaleMask = (
   return destBuffer;
 };
 
-interface CropRegion {
-  cropX: number;
-  cropY: number;
-  cropW: number;
-  cropH: number;
+interface FullImagePayload {
   base64: string;
-  brushX: number;
-  brushY: number;
-  brushW: number;
-  brushH: number;
+  rectX: number;
+  rectY: number;
+  rectW: number;
+  rectH: number;
 }
 
-const cropAndOverlayMask = (
+const getCompressedFullImage = (
   orig: Uint8ClampedArray,
   w: number,
   h: number,
-  mask: Uint8ClampedArray,
-  withOverlay: boolean = false
-): CropRegion | null => {
+  mask: Uint8ClampedArray
+): FullImagePayload | null => {
   let minX = w;
   let maxX = -1;
   let minY = h;
@@ -361,62 +356,32 @@ const cropAndOverlayMask = (
 
   if (!hasPixels) return null;
 
-  const boxW = maxX - minX + 1;
-  const boxH = maxY - minY + 1;
-
-  const padX = Math.max(64, Math.round(boxW * 0.5));
-  const padY = Math.max(64, Math.round(boxH * 0.5));
-
-  const cropX = Math.max(0, minX - padX);
-  const cropY = Math.max(0, minY - padY);
-  const cropEndX = Math.min(w - 1, maxX + padX);
-  const cropEndY = Math.min(h - 1, maxY + padY);
-
-  const cropW = cropEndX - cropX + 1;
-  const cropH = cropEndY - cropY + 1;
+  const pad = 16;
+  const rectX = Math.max(0, minX - pad);
+  const rectY = Math.max(0, minY - pad);
+  const rectEndX = Math.min(w - 1, maxX + pad);
+  const rectEndY = Math.min(h - 1, maxY + pad);
+  const rectW = rectEndX - rectX + 1;
+  const rectH = rectEndY - rectY + 1;
 
   const canvas = document.createElement('canvas');
-  canvas.width = cropW;
-  canvas.height = cropH;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  const imgData = ctx.createImageData(cropW, cropH);
-
-  for (let cy = 0; cy < cropH; cy++) {
-    const sy = cropY + cy;
-    for (let cx = 0; cx < cropW; cx++) {
-      const sx = cropX + cx;
-      const srcIdx = (sy * w + sx) * 4;
-      const destIdx = (cy * cropW + cx) * 4;
-
-      if (withOverlay && mask[sy * w + sx] > 128) {
-        imgData.data[destIdx] = 255;
-        imgData.data[destIdx + 1] = 0;
-        imgData.data[destIdx + 2] = 0;
-        imgData.data[destIdx + 3] = 255;
-      } else {
-        imgData.data[destIdx] = orig[srcIdx];
-        imgData.data[destIdx + 1] = orig[srcIdx + 1];
-        imgData.data[destIdx + 2] = orig[srcIdx + 2];
-        imgData.data[destIdx + 3] = orig[srcIdx + 3];
-      }
-    }
-  }
-
+  const imgData = ctx.createImageData(w, h);
+  imgData.data.set(orig);
   ctx.putImageData(imgData, 0, 0);
+
   const base64 = canvas.toDataURL('image/png');
 
   return {
-    cropX,
-    cropY,
-    cropW,
-    cropH,
     base64,
-    brushX: minX - cropX,
-    brushY: minY - cropY,
-    brushW: boxW,
-    brushH: boxH
+    rectX,
+    rectY,
+    rectW,
+    rectH
   };
 };
 
@@ -528,7 +493,7 @@ export const App: React.FC = () => {
   const [hasEraserPixels, setHasEraserPixels] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [eraserMode, setEraserMode] = useState<'local' | 'ai'>('local');
-  const [aiPrompt, setAiPrompt] = useState('Erase the red highlighted area and reconstruct the background seamlessly.');
+  const [aiPrompt, setAiPrompt] = useState('');
 
   const [splitRatio, setSplitRatio] = useState<number | null>(null);
 
@@ -691,8 +656,8 @@ export const App: React.FC = () => {
     try {
       let nextPixels: Uint8ClampedArray;
       if (eraserMode === 'ai') {
-        const cropRegion = cropAndOverlayMask(orig, previewW, previewH, eraserBuffer, false);
-        if (!cropRegion) {
+        const payload = getCompressedFullImage(orig, previewW, previewH, eraserBuffer);
+        if (!payload) {
           throw new Error('No masked pixels found.');
         }
         const res = await fetch('/api/v1/inpaint', {
@@ -701,13 +666,13 @@ export const App: React.FC = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            image: cropRegion.base64,
+            image: payload.base64,
             prompt: aiPrompt,
             region: {
-              x: cropRegion.brushX,
-              y: cropRegion.brushY,
-              w: cropRegion.brushW,
-              h: cropRegion.brushH
+              x: payload.rectX,
+              y: payload.rectY,
+              w: payload.rectW,
+              h: payload.rectH
             }
           }),
         });
@@ -716,13 +681,21 @@ export const App: React.FC = () => {
           throw new Error(errData.error || `HTTP ${res.status} from backend`);
         }
         const data = await res.json() as any;
-        const resultPixels = await loadImageDataFromDataUrl(data.image, cropRegion.cropW, cropRegion.cropH);
+        const resultPixels = await loadImageDataFromDataUrl(data.image, previewW, previewH);
         nextPixels = new Uint8ClampedArray(orig);
-        for (let cy = 0; cy < cropRegion.cropH; cy++) {
-          const sy = cropRegion.cropY + cy;
-          const srcRowStart = cy * cropRegion.cropW * 4;
-          const destRowStart = (sy * previewW + cropRegion.cropX) * 4;
-          nextPixels.set(resultPixels.subarray(srcRowStart, srcRowStart + cropRegion.cropW * 4), destRowStart);
+        for (let cy = 0; cy < payload.rectH; cy++) {
+          const sy = payload.rectY + cy;
+          for (let cx = 0; cx < payload.rectW; cx++) {
+            const sx = payload.rectX + cx;
+            const destIdx = (sy * previewW + sx) * 4;
+            if (orig[destIdx + 3] === 0) {
+              continue;
+            }
+            nextPixels[destIdx] = resultPixels[destIdx];
+            nextPixels[destIdx + 1] = resultPixels[destIdx + 1];
+            nextPixels[destIdx + 2] = resultPixels[destIdx + 2];
+            nextPixels[destIdx + 3] = resultPixels[destIdx + 3];
+          }
         }
       } else {
         const holeCount = countMaskPixels(eraserBuffer);

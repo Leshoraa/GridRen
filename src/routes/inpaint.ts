@@ -22,19 +22,23 @@ export const inpaintRoutes = new Elysia({ prefix: "/inpaint" })
           folder: "gridren_inpaint"
         });
 
-        let effectStr = "";
-        if (body.prompt) {
-          effectStr = `gen_remove:prompt_${encodeURIComponent(body.prompt)}`;
+        const hasPrompt = body.prompt && body.prompt.trim().length > 0;
+        const hasRegion = !!body.region;
+        let effectStr = "gen_remove";
+
+        if (hasPrompt && hasRegion) {
+          effectStr = `gen_remove:prompt_${encodeURIComponent(body.prompt.trim())};region_((x_${body.region.x};y_${body.region.y};w_${body.region.w};h_${body.region.h}))`;
+        } else if (hasPrompt) {
+          effectStr = `gen_remove:prompt_${encodeURIComponent(body.prompt.trim())}`;
         } else if (body.region) {
           effectStr = `gen_remove:region_((x_${body.region.x};y_${body.region.y};w_${body.region.w};h_${body.region.h}))`;
-        } else {
-          effectStr = "gen_remove";
         }
 
         const transformedUrl = cloudinary.url(uploadRes.public_id, {
           transformation: [
             { effect: effectStr }
           ],
+          format: "png",
           secure: true
         });
 
