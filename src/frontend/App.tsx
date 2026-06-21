@@ -328,13 +328,18 @@ interface CropRegion {
   cropW: number;
   cropH: number;
   base64: string;
+  brushX: number;
+  brushY: number;
+  brushW: number;
+  brushH: number;
 }
 
 const cropAndOverlayMask = (
   orig: Uint8ClampedArray,
   w: number,
   h: number,
-  mask: Uint8ClampedArray
+  mask: Uint8ClampedArray,
+  withOverlay: boolean = false
 ): CropRegion | null => {
   let minX = w;
   let maxX = -1;
@@ -385,7 +390,7 @@ const cropAndOverlayMask = (
       const srcIdx = (sy * w + sx) * 4;
       const destIdx = (cy * cropW + cx) * 4;
 
-      if (mask[sy * w + sx] > 128) {
+      if (withOverlay && mask[sy * w + sx] > 128) {
         imgData.data[destIdx] = 255;
         imgData.data[destIdx + 1] = 0;
         imgData.data[destIdx + 2] = 0;
@@ -402,7 +407,17 @@ const cropAndOverlayMask = (
   ctx.putImageData(imgData, 0, 0);
   const base64 = canvas.toDataURL('image/png');
 
-  return { cropX, cropY, cropW, cropH, base64 };
+  return {
+    cropX,
+    cropY,
+    cropW,
+    cropH,
+    base64,
+    brushX: minX - cropX,
+    brushY: minY - cropY,
+    brushW: boxW,
+    brushH: boxH
+  };
 };
 
 const loadImageDataFromDataUrl = (dataUrl: string, targetW: number, targetH: number): Promise<Uint8ClampedArray> => {
@@ -676,7 +691,7 @@ export const App: React.FC = () => {
     try {
       let nextPixels: Uint8ClampedArray;
       if (eraserMode === 'ai') {
-        const cropRegion = cropAndOverlayMask(orig, previewW, previewH, eraserBuffer);
+        const cropRegion = cropAndOverlayMask(orig, previewW, previewH, eraserBuffer, false);
         if (!cropRegion) {
           throw new Error('No masked pixels found.');
         }
@@ -688,6 +703,12 @@ export const App: React.FC = () => {
           body: JSON.stringify({
             image: cropRegion.base64,
             prompt: aiPrompt,
+            region: {
+              x: cropRegion.brushX,
+              y: cropRegion.brushY,
+              w: cropRegion.brushW,
+              h: cropRegion.brushH
+            }
           }),
         });
         if (!res.ok) {

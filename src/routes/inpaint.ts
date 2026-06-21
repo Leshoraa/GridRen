@@ -1,66 +1,72 @@
 import { Elysia, t } from "elysia";
+import { v2 as cloudinary } from "cloudinary";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true
+});
 
 export const inpaintRoutes = new Elysia({ prefix: "/inpaint" })
   .post(
     "/",
     async ({ body, set }) => {
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      if (!apiKey) {
-        set.status = 500;
-        return { error: "OpenRouter API Key is not configured in backend environment." };
-      }
+      try {
+        if (!process.env.CLOUDINARY_CLOUD_NAME) {
+          set.status = 500;
+          return { error: "Cloudinary is not configured in backend environment." };
+        }
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "GridRen Photo Editor"
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: body.prompt || "Erase the area covered in bright red, fill and reconstruct the background seamlessly."
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: body.image
-                  }
-                }
-              ]
-            }
+        const uploadRes = await cloudinary.uploader.upload(body.image, {
+          folder: "gridren_inpaint"
+        });
+
+        let effectStr = "";
+        if (body.prompt) {
+          effectStr = `gen_remove:prompt_${encodeURIComponent(body.prompt)}`;
+        } else if (body.region) {
+          effectStr = `gen_remove:region_((x_${body.region.x};y_${body.region.y};w_${body.region.w};h_${body.region.h}))`;
+        } else {
+          effectStr = "gen_remove";
+        }
+
+        const transformedUrl = cloudinary.url(uploadRes.public_id, {
+          transformation: [
+            { effect: effectStr }
           ],
-          modalities: ["image", "text"],
-          max_tokens: 1000
-        })
-      });
+          secure: true
+        });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        set.status = response.status;
-        return { error: `OpenRouter error: ${errText}` };
+        const fetchRes = await fetch(transformedUrl);
+        if (!fetchRes.ok) {
+          const cldErr = fetchRes.headers.get("x-cld-error") || "Unknown Cloudinary error";
+          set.status = 400;
+          return { error: `Cloudinary error: ${cldErr}` };
+        }
+
+        const contentType = fetchRes.headers.get("content-type") || "image/png";
+        const arrayBuffer = await fetchRes.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        
+        return { image: `data:${contentType};base64,${base64Data}` };
+      } catch (err: any) {
+        set.status = 500;
+        return { error: err.message || "Internal server error" };
       }
-
-      const result = await response.json() as any;
-      const base64Url = result.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-      if (!base64Url) {
-        set.status = 502;
-        return { error: "No image generated in the response." };
-      }
-
-      return { image: base64Url };
     },
     {
       body: t.Object({
         image: t.String(),
-        prompt: t.Optional(t.String())
+        prompt: t.Optional(t.String()),
+        region: t.Optional(
+          t.Object({
+            x: t.Number(),
+            y: t.Number(),
+            w: t.Number(),
+            h: t.Number()
+          })
+        )
       })
     }
   );
