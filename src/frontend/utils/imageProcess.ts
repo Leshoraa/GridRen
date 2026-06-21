@@ -1,3 +1,6 @@
+export { applyPatchMatch, PatchMatchParams } from './patchMatchWorkerClient';
+export { countMaskPixels } from './patchMatchCore';
+
 export interface AdjustmentState {
   exposure: number;
   contrast: number;
@@ -1068,6 +1071,10 @@ export function applyInpaint(
   h: number,
   mask: Uint8ClampedArray
 ): Uint8ClampedArray {
+  const cv = (window as any).cv;
+  if (!cv) {
+    throw new Error("OpenCV.js is not loaded");
+  }
   const imgCanvas = document.createElement("canvas");
   imgCanvas.width = w;
   imgCanvas.height = h;
@@ -1101,7 +1108,24 @@ export function applyInpaint(
   outCanvas.width = w;
   outCanvas.height = h;
 
-  applyInpaintClassic(imgCanvas, maskCanvas, outCanvas, 5);
+  const src = cv.imread(imgCanvas);
+  const srcRGB = new cv.Mat();
+  cv.cvtColor(src, srcRGB, cv.COLOR_RGBA2RGB);
+
+  const maskMat = cv.imread(maskCanvas);
+  const maskGray = new cv.Mat();
+  cv.cvtColor(maskMat, maskGray, cv.COLOR_RGBA2GRAY);
+
+  const dst = new cv.Mat();
+  cv.inpaint(srcRGB, maskGray, dst, 5, cv.INPAINT_TELEA);
+
+  cv.imshow(outCanvas, dst);
+
+  src.delete();
+  srcRGB.delete();
+  maskMat.delete();
+  maskGray.delete();
+  dst.delete();
 
   const outCtx = outCanvas.getContext("2d");
   if (!outCtx) {

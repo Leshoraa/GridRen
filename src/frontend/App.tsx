@@ -13,9 +13,7 @@ import { SidebarTabs, TabType } from './components/SidebarTabs';
 import { CreativeEffectsModule } from './components/CreativeEffectsModule';
 import { LensModule } from './components/LensModule';
 import { EraserModule } from './components/EraserModule';
-
-import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels, applyInpaint } from './utils/imageProcess';
-
+import { AdjustmentState, CurvePoint, CurvesState, PresetType, processPixels, applyInpaint, applyPatchMatch, countMaskPixels } from './utils/imageProcess';
 const initialAdjustments = (): AdjustmentState => ({
   exposure: 0,
   contrast: 1,
@@ -324,6 +322,110 @@ const cropAndScaleMask = (
   return destBuffer;
 };
 
+interface CropRegion {
+  cropX: number;
+  cropY: number;
+  cropW: number;
+  cropH: number;
+  base64: string;
+}
+
+const cropAndOverlayMask = (
+  orig: Uint8ClampedArray,
+  w: number,
+  h: number,
+  mask: Uint8ClampedArray
+): CropRegion | null => {
+  let minX = w;
+  let maxX = -1;
+  let minY = h;
+  let maxY = -1;
+  let hasPixels = false;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (mask[y * w + x] > 128) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        hasPixels = true;
+      }
+    }
+  }
+
+  if (!hasPixels) return null;
+
+  const boxW = maxX - minX + 1;
+  const boxH = maxY - minY + 1;
+
+  const padX = Math.max(64, Math.round(boxW * 0.5));
+  const padY = Math.max(64, Math.round(boxH * 0.5));
+
+  const cropX = Math.max(0, minX - padX);
+  const cropY = Math.max(0, minY - padY);
+  const cropEndX = Math.min(w - 1, maxX + padX);
+  const cropEndY = Math.min(h - 1, maxY + padY);
+
+  const cropW = cropEndX - cropX + 1;
+  const cropH = cropEndY - cropY + 1;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cropW;
+  canvas.height = cropH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const imgData = ctx.createImageData(cropW, cropH);
+
+  for (let cy = 0; cy < cropH; cy++) {
+    const sy = cropY + cy;
+    for (let cx = 0; cx < cropW; cx++) {
+      const sx = cropX + cx;
+      const srcIdx = (sy * w + sx) * 4;
+      const destIdx = (cy * cropW + cx) * 4;
+
+      if (mask[sy * w + sx] > 128) {
+        imgData.data[destIdx] = 255;
+        imgData.data[destIdx + 1] = 0;
+        imgData.data[destIdx + 2] = 0;
+        imgData.data[destIdx + 3] = 255;
+      } else {
+        imgData.data[destIdx] = orig[srcIdx];
+        imgData.data[destIdx + 1] = orig[srcIdx + 1];
+        imgData.data[destIdx + 2] = orig[srcIdx + 2];
+        imgData.data[destIdx + 3] = orig[srcIdx + 3];
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  const base64 = canvas.toDataURL('image/png');
+
+  return { cropX, cropY, cropW, cropH, base64 };
+};
+
+const loadImageDataFromDataUrl = (dataUrl: string, targetW: number, targetH: number): Promise<Uint8ClampedArray> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas 2D context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, targetW, targetH);
+      const imgData = ctx.getImageData(0, 0, targetW, targetH);
+      resolve(imgData.data);
+    };
+    img.onerror = (err) => reject(err);
+    img.src = dataUrl;
+  });
+};
+
 export const App: React.FC = () => {
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
   const [imageMeta, setImageMeta] = useState({ name: '', size: '', dim: '' });
@@ -376,6 +478,7 @@ export const App: React.FC = () => {
   const [brushMode, setBrushMode] = useState<'add' | 'erase'>('add');
   const [showOverlay, setShowOverlay] = useState(false);
 
+
   const [uiCollapsed, setUiCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('presets');
   const [zoom, setZoom] = useState(100);
@@ -409,6 +512,8 @@ export const App: React.FC = () => {
   const [eraserBuffer, setEraserBuffer] = useState<Uint8ClampedArray | null>(null);
   const [hasEraserPixels, setHasEraserPixels] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [eraserMode, setEraserMode] = useState<'local' | 'ai'>('local');
+  const [aiPrompt, setAiPrompt] = useState('Erase the red highlighted area and reconstruct the background seamlessly.');
 
   const [splitRatio, setSplitRatio] = useState<number | null>(null);
 
@@ -560,38 +665,85 @@ export const App: React.FC = () => {
       showToast('Eraser selection cleared');
     }
   };
-
-  const handleApplyErase = () => {
+  const handleApplyErase = async () => {
     const orig = canvasRef.current?.getOrigPixels();
     if (!orig || !eraserBuffer || !previewW || !previewH) return;
     if (!hasEraserPixels) {
       showToast('Please paint on the image first');
       return;
     }
-    if (!isCvReady) {
-      showToast('OpenCV.js is loading, please wait...');
-      return;
-    }
     setIsProcessing(true);
-    setTimeout(() => {
-      try {
-        const nextPixels = applyInpaint(orig, previewW, previewH, eraserBuffer);
-        canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
-        setOrigPixels(nextPixels);
-        eraserBuffer.fill(0);
-        setEraserBuffer(new Uint8ClampedArray(eraserBuffer));
-        pushHistory(globalAdjustments, globalCurves, globalPreset, masks, activeMaskId, nextPixels, previewW, previewH);
-        setHasEraserPixels(false);
-        showToast('Object erased successfully');
-      } catch (err) {
-        console.error(err);
-        showToast('Failed to erase object');
-      } finally {
-        setIsProcessing(false);
-      }
-    }, 50);
-  };
+    try {
+      let nextPixels: Uint8ClampedArray;
+      if (eraserMode === 'ai') {
+        const cropRegion = cropAndOverlayMask(orig, previewW, previewH, eraserBuffer);
+        if (!cropRegion) {
+          throw new Error('No masked pixels found.');
+        }
+        const res = await fetch('/api/v1/inpaint', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image: cropRegion.base64,
+            prompt: aiPrompt,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json() as any;
+          throw new Error(errData.error || `HTTP ${res.status} from backend`);
+        }
+        const data = await res.json() as any;
+        const resultPixels = await loadImageDataFromDataUrl(data.image, cropRegion.cropW, cropRegion.cropH);
+        nextPixels = new Uint8ClampedArray(orig);
+        for (let cy = 0; cy < cropRegion.cropH; cy++) {
+          const sy = cropRegion.cropY + cy;
+          const srcRowStart = cy * cropRegion.cropW * 4;
+          const destRowStart = (sy * previewW + cropRegion.cropX) * 4;
+          nextPixels.set(resultPixels.subarray(srcRowStart, srcRowStart + cropRegion.cropW * 4), destRowStart);
+        }
+      } else {
+        const holeCount = countMaskPixels(eraserBuffer);
+        const totalPixels = previewW * previewH;
+        const holeRatio = holeCount / totalPixels;
 
+        if (holeRatio < 0.02) {
+          if (!isCvReady) {
+            showToast('OpenCV.js is loading, please wait...');
+            setIsProcessing(false);
+            return;
+          }
+          nextPixels = applyInpaint(orig, previewW, previewH, eraserBuffer);
+        } else {
+          try {
+            nextPixels = await applyPatchMatch(orig, previewW, previewH, eraserBuffer);
+          } catch (pmErr) {
+            console.warn('PatchMatch failed, falling back to OpenCV:', pmErr);
+            if (!isCvReady) {
+              showToast('OpenCV.js is loading, please wait...');
+              setIsProcessing(false);
+              return;
+            }
+            nextPixels = applyInpaint(orig, previewW, previewH, eraserBuffer);
+          }
+        }
+      }
+
+      canvasRef.current?.setOrigPixels(nextPixels, previewW, previewH);
+      setOrigPixels(nextPixels);
+      eraserBuffer.fill(0);
+      setEraserBuffer(new Uint8ClampedArray(eraserBuffer));
+      pushHistory(globalAdjustments, globalCurves, globalPreset, masks, activeMaskId, nextPixels, previewW, previewH);
+      setHasEraserPixels(false);
+      showToast('Object erased successfully');
+    } catch (err) {
+      console.error(err);
+      showToast(err instanceof Error ? err.message : 'Failed to erase object');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   const addMask = (type: 'brush' | 'radial' | 'linear') => {
     if (!previewW || !previewH) return;
     const buffer = new Uint8ClampedArray(previewW * previewH);
@@ -1014,6 +1166,7 @@ export const App: React.FC = () => {
             cropMode={cropMode}
             cropAspectRatio={cropAspectRatio}
             customRatioW={customRatioW}
+            customRatioH={customRatioH}
             isComparing={isComparing}
             isEraserMode={activeTab === 'eraser'}
             eraserBuffer={eraserBuffer}
@@ -1135,7 +1288,6 @@ export const App: React.FC = () => {
                   setShowOverlay={setShowOverlay}
                 />
               )}
-
               {activeTab === 'eraser' && (
                 <EraserModule
                   brushSize={brushSize}
@@ -1150,9 +1302,12 @@ export const App: React.FC = () => {
                   onApplyErase={handleApplyErase}
                   hasMaskPixels={hasEraserPixels}
                   isCvReady={isCvReady}
+                  eraserMode={eraserMode}
+                  setEraserMode={setEraserMode}
+                  aiPrompt={aiPrompt}
+                  setAiPrompt={setAiPrompt}
                 />
               )}
-
               {activeTab === 'geometry' && (
                 <TransformModule
                   onRotateCW={rotateCW}

@@ -14,6 +14,10 @@ interface EraserModuleProps {
   onApplyErase: () => void;
   hasMaskPixels: boolean;
   isCvReady?: boolean;
+  eraserMode: 'local' | 'ai';
+  setEraserMode: (mode: 'local' | 'ai') => void;
+  aiPrompt: string;
+  setAiPrompt: (prompt: string) => void;
 }
 
 export const EraserModule: React.FC<EraserModuleProps> = ({
@@ -29,6 +33,10 @@ export const EraserModule: React.FC<EraserModuleProps> = ({
   onApplyErase,
   hasMaskPixels,
   isCvReady = false,
+  eraserMode,
+  setEraserMode,
+  aiPrompt,
+  setAiPrompt,
 }) => {
   return (
     <div className="control-module active-module">
@@ -36,8 +44,47 @@ export const EraserModule: React.FC<EraserModuleProps> = ({
       <div className="module-content">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-            Brush over spots, dust, blemishes, or unwanted objects on the image to select them, then click "Erase Object" to remove them.
+            Brush over unwanted objects. Choose Quick Erase for local instant removal, or Smart Fill to reconstruct background using Generative AI.
           </p>
+
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+            <button
+              className={`btn ${eraserMode === 'local' ? 'btn-active' : ''}`}
+              style={{ flex: 1, fontSize: '11px', padding: '6px 4px' }}
+              onClick={() => setEraserMode('local')}
+            >
+              Quick Erase (Local)
+            </button>
+            <button
+              className={`btn ${eraserMode === 'ai' ? 'btn-active' : ''}`}
+              style={{ flex: 1, fontSize: '11px', padding: '6px 4px' }}
+              onClick={() => setEraserMode('ai')}
+            >
+              Smart Fill (AI)
+            </button>
+          </div>
+
+          {eraserMode === 'ai' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AI Prompt / Instructions</label>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: '60px',
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  padding: '6px 8px',
+                  fontSize: '12px',
+                  resize: 'none'
+                }}
+                placeholder="Describe what to reconstruct or fill..."
+              />
+            </div>
+          )}
 
           <SwissSlider
             label="Brush Size"
@@ -87,10 +134,12 @@ export const EraserModule: React.FC<EraserModuleProps> = ({
             <button
               className="btn btn-accent"
               onClick={onApplyErase}
-              disabled={!hasMaskPixels || !isCvReady}
+              disabled={!hasMaskPixels || (eraserMode === 'local' && !isCvReady)}
               style={{ width: '100%', fontWeight: 'bold' }}
             >
-              {isCvReady ? 'Erase Object' : 'Loading OpenCV...'}
+              {eraserMode === 'ai'
+                ? 'Generate Pixels (AI)'
+                : isCvReady ? 'Erase Object' : 'Loading OpenCV...'}
             </button>
             <button
               className="btn"
@@ -108,3 +157,4 @@ export const EraserModule: React.FC<EraserModuleProps> = ({
 };
 
 export default EraserModule;
+
